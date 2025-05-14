@@ -1,9 +1,10 @@
 import { McpAgent } from "agents/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import { getFeatureFlagDefinition } from "./posthogApi";
 
 // Define our MCP agent with tools
-export class MyMCP extends McpAgent {
+export class MyMCP extends McpAgent<Env> {
 	server = new McpServer({
 		name: "Authless Calculator",
 		version: "1.0.0",
@@ -56,6 +57,25 @@ export class MyMCP extends McpAgent {
 				return { content: [{ type: "text", text: String(result) }] };
 			}
 		);
+
+		this.server.tool(
+			"feature-flag-get-definition",
+			{
+				flag: z.string(),
+			},
+			async ({ flag }) => {
+				console.log("this.env", this.env);
+				const posthogToken = this.env.POSTHOG_API_TOKEN;
+				try {
+					const flagDefinition = await getFeatureFlagDefinition(flag, posthogToken);
+					console.log("flagDefinition", flagDefinition);
+					return { content: [{ type: "text", text: JSON.stringify(flagDefinition) }] };
+				} catch (error) {
+					console.error("Error fetching feature flag:", error);
+					return { content: [{ type: "text", text: "Error fetching feature flag" }] };
+				}
+			}
+		);	
 	}
 }
 
