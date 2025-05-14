@@ -28,6 +28,7 @@ export class MyMCP extends McpAgent {
 				b: z.number(),
 			},
 			async ({ operation, a, b }) => {
+				// access token via this.env.POSTHOG_API_TOKEN
 				let result: number;
 				switch (operation) {
 					case "add":
@@ -61,6 +62,13 @@ export class MyMCP extends McpAgent {
 export default {
 	fetch(request: Request, env: Env, ctx: ExecutionContext) {
 		const url = new URL(request.url);
+		const token = url.searchParams.get("token");
+
+		if (!token) {
+			return new Response("Unauthorized", { status: 401 });
+		}
+
+		env["POSTHOG_API_TOKEN"] = token;
 
 		if (url.pathname === "/sse" || url.pathname === "/sse/message") {
 			// @ts-ignore
