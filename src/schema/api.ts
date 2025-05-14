@@ -22,11 +22,3 @@ export const ApiResponseSchema = <T extends z.ZodType>(dataSchema: T) => z.objec
   previous: z.string().nullable(),
   results: z.array(dataSchema)
 });
-
-export const PropertyDefinitionSchema = ApiPropertyDefinitionSchema.pick({
-  name: true,
-  property_type: true,
-});
-
-export type PropertyDefinition = z.infer<typeof ApiPropertyDefinitionSchema>;
-export type PropertyDefinitionsResponse = z.infer<ReturnType<typeof ApiResponseSchema<typeof ApiPropertyDefinitionSchema>>>; 

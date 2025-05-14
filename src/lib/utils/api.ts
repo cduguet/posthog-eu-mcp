@@ -1,4 +1,4 @@
-import { ApiResponseSchema } from "../../types/posthog";
+import { ApiResponseSchema } from "../../schema/api";
 import { z } from "zod";
 
 export const withPagination = async <T>(url: string, apiToken: string, dataSchema: z.ZodType<T>): Promise<T[]> => {

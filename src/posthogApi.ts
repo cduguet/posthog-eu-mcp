@@ -1,6 +1,8 @@
-import { ApiPropertyDefinitionSchema } from "./types/posthog";
+import { ApiPropertyDefinitionSchema } from "./schema/api";
 import { withPagination } from "./lib/utils/api";
-import { PropertyDefinitionSchema } from "./types/posthog";
+import type { PostHogFeatureFlag } from "./schema/flags";
+import type { PostHogFlagsResponse } from "./schema/flags";
+import { PropertyDefinitionSchema } from "./schema/properties";
 
 export async function getFeatureFlagDefinition(flag: string, apiToken: string) {
 	const response = await fetch(`https://us.posthog.com/api/projects/99423/feature_flags/${flag}/`, {
@@ -13,17 +15,6 @@ export async function getFeatureFlagDefinition(flag: string, apiToken: string) {
 	}
 	return response.json();
 }
-
-interface PostHogFeatureFlag {
-	id: number;
-	key: string;
-	name: string;
-}
-
-interface PostHogFlagsResponse {
-	results?: PostHogFeatureFlag[];
-}
-
 export async function getFeatureFlags(apiToken: string): Promise<PostHogFeatureFlag[]> {
 	const response = await fetch(`https://us.posthog.com/api/projects/99423/feature_flags/`, {
 		headers: {
