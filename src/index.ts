@@ -1,7 +1,7 @@
 import { McpAgent } from "agents/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { getFeatureFlagDefinition, getFeatureFlags } from "./posthogApi";
+import { getFeatureFlagDefinition, getFeatureFlags, getOrganizations, getProjects } from "./posthogApi";
 
 // Define our MCP agent with tools
 export class MyMCP extends McpAgent<Env> {
@@ -48,7 +48,37 @@ export class MyMCP extends McpAgent<Env> {
 					return { content: [{ type: "text", text: `Error: ${error.message || "Failed to process feature flag request"}` }] };
 				}
 			}
-		);	
+		);
+		this.server.tool(
+			"organizations-get",
+			{},
+			async () => {
+				try {
+					const organizations = await getOrganizations(this.env.POSTHOG_API_TOKEN);
+					console.log("organizations", organizations);
+					return { content: [{ type: "text", text: JSON.stringify(organizations) }] };
+				} catch(error) {
+					console.error("Error fetching organizations:", error);
+					return { content: [{ type: "text", text: "Error fetching organizations" }] };
+				}
+			}
+		);
+		this.server.tool(
+			"projects-get",
+			{
+				orgId: z.string(),
+			},
+			async ({ orgId }) => {
+				try {
+					const projects = await getProjects(orgId, this.env.POSTHOG_API_TOKEN);
+					console.log("projects", projects);
+					return { content: [{ type: "text", text: JSON.stringify(projects) }] };
+				} catch(error) {
+					console.error("Error fetching projects:", error);
+					return { content: [{ type: "text", text: "Error fetching projects" }] };
+				}
+			}
+		);
 	}
 }
 
