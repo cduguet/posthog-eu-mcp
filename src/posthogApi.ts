@@ -42,8 +42,7 @@ export async function getOrganizations(apiToken: string) {
 	if (!response.ok) {
 		throw new Error(`Failed to fetch feature flags: ${response.statusText}`);
 	}
-	const data = await response.json() as PostHogFlagsResponse;
-	return data.results || []; 
+	return response.json();
 } 
 
 export async function getProjects(orgId: string, apiToken: string) {
