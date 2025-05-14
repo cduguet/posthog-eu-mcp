@@ -1,7 +1,7 @@
 import { McpAgent } from "agents/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { getFeatureFlagDefinition, getOrganizations, getProjects } from "./posthogApi";
+import { getFeatureFlagDefinition, getFeatureFlags, getOrganizations, getProjects } from "./posthogApi";
 
 // Define our MCP agent with tools
 export class MyMCP extends McpAgent<Env> {
@@ -14,18 +14,38 @@ export class MyMCP extends McpAgent<Env> {
 		this.server.tool(
 			"feature-flag-get-definition",
 			{
-				flag: z.string(),
+				flagId: z.string().optional(),
+				flagName: z.string().optional(),
 			},
-			async ({ flag }) => {
-				console.log("this.env", this.env);
+			async ({ flagId, flagName }) => {
 				const posthogToken = this.env.POSTHOG_API_TOKEN;
+
+				if (!flagId && !flagName) {
+					return { content: [{ type: "text", text: "Error: Either flagId or flagName must be provided." }] };
+				}
+
 				try {
-					const flagDefinition = await getFeatureFlagDefinition(flag, posthogToken);
-					console.log("flagDefinition", flagDefinition);
-					return { content: [{ type: "text", text: JSON.stringify(flagDefinition) }] };
-				} catch (error) {
-					console.error("Error fetching feature flag:", error);
-					return { content: [{ type: "text", text: "Error fetching feature flag" }] };
+					let flagDefinition: any;
+
+					if (flagId) {
+						flagDefinition = await getFeatureFlagDefinition(String(flagId), posthogToken);
+						return { content: [{ type: "text", text: JSON.stringify(flagDefinition) }] };
+					} 
+					
+					if (flagName) {
+						const allFlags = await getFeatureFlags(posthogToken);
+						const foundFlag = allFlags.find(f => f.key === flagName);
+						if (foundFlag) {
+							return { content: [{ type: "text", text: JSON.stringify(foundFlag) }] };
+						} else {
+							return { content: [{ type: "text", text: `Error: Flag with name "${flagName}" not found.` }] };
+						}
+					}
+
+					return { content: [{ type: "text", text: "Error: Could not determine or find the feature flag." }] };
+				} catch (error: any) {
+					console.error("Error in feature-flag-get-definition tool:", error);
+					return { content: [{ type: "text", text: `Error: ${error.message || "Failed to process feature flag request"}` }] };
 				}
 			}
 		);
