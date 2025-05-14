@@ -1,7 +1,8 @@
 import { McpAgent } from "agents/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { getFeatureFlagDefinition, getFeatureFlags, getOrganizationDetails, getOrganizations, getProjects, getPropertyDefinitions } from "./posthogApi";
+import { createFeatureFlag, getFeatureFlagDefinition, getFeatureFlags, getOrganizationDetails, getOrganizations, getProjects, getPropertyDefinitions } from "./posthogApi";
+import { FilterGroupsSchema } from "./schema/flags";
 import { docsSearch } from "./inkeepApi";
 
 interface Env {
@@ -111,7 +112,7 @@ export class MyMCP extends McpAgent<Env> {
 					const organizationDetails = await getOrganizationDetails(orgId, this.env.POSTHOG_API_TOKEN);
 					console.log("organization details", organizationDetails);
 					return { content: [{ type: "text", text: JSON.stringify(organizationDetails) }] };
-				} catch(error) {
+				} catch (error) {
 					console.error("Error fetching organization details:", error);
 					return { content: [{ type: "text", text: "Error fetching organization details" }] };
 				}
@@ -144,6 +145,23 @@ export class MyMCP extends McpAgent<Env> {
 			async ({ projectId }) => {
 				const propertyDefinitions = await getPropertyDefinitions({ projectId: projectId, apiToken: this.env.POSTHOG_API_TOKEN });
 				return { content: [{ type: "text", text: JSON.stringify(propertyDefinitions) }] };
+			}
+		);
+
+		this.server.tool(
+			"create-feature-flag",
+			{
+				name: z.string(),
+				key: z.string(),
+				description: z.string(),
+				filters: FilterGroupsSchema,
+				active: z.boolean(),
+				projectId: z.string(),
+			},
+			async ({ name, key, description, filters, active, projectId }) => {
+
+				const featureFlag = await createFeatureFlag({ projectId: projectId, apiToken: this.env.POSTHOG_API_TOKEN, data: { name, key, description, filters, active } });
+				return { content: [{ type: "text", text: JSON.stringify(featureFlag) }] };
 			}
 		);
 	}
