@@ -1,3 +1,9 @@
+import { ApiPropertyDefinitionSchema } from "./schema/api";
+import { withPagination } from "./lib/utils/api";
+import type { PostHogFeatureFlag } from "./schema/flags";
+import type { PostHogFlagsResponse } from "./schema/flags";
+import { PropertyDefinitionSchema } from "./schema/properties";
+
 export async function getFeatureFlagDefinition(flag: string, apiToken: string) {
 	const response = await fetch(`https://us.posthog.com/api/projects/99423/feature_flags/${flag}/`, {
 		headers: {
@@ -9,17 +15,6 @@ export async function getFeatureFlagDefinition(flag: string, apiToken: string) {
 	}
 	return response.json();
 }
-
-interface PostHogFeatureFlag {
-	id: number;
-	key: string;
-	name: string;
-}
-
-interface PostHogFlagsResponse {
-	results?: PostHogFeatureFlag[];
-}
-
 export async function getFeatureFlags(apiToken: string): Promise<PostHogFeatureFlag[]> {
 	const response = await fetch(`https://us.posthog.com/api/projects/99423/feature_flags/`, {
 		headers: {
@@ -31,7 +26,7 @@ export async function getFeatureFlags(apiToken: string): Promise<PostHogFeatureF
 	}
 	const data = await response.json() as PostHogFlagsResponse;
 	return data.results || [];
-} 
+}
 
 export async function getOrganizations(apiToken: string) {
 	const response = await fetch(`https://us.posthog.com/api/organizations/`, {
@@ -43,7 +38,7 @@ export async function getOrganizations(apiToken: string) {
 		throw new Error(`Failed to fetch organizations: ${response.statusText}`);
 	}
 	return response.json();
-} 
+}
 
 export async function getProjects(orgId: string, apiToken: string) {
 	const response = await fetch(`https://us.posthog.com/api/organizations/${orgId}/projects/`, {
@@ -55,4 +50,12 @@ export async function getProjects(orgId: string, apiToken: string) {
 		throw new Error(`Failed to fetch projects: ${response.statusText}`);
 	}
 	return response.json();
+}
+
+export async function getPropertyDefinitions({ apiToken }: { apiToken: string }) {
+	const propertyDefinitions = await withPagination(`https://us.posthog.com/api/projects/99423/property_definitions/`, apiToken, ApiPropertyDefinitionSchema);
+
+	const propertyDefinitionsWithoutHidden = propertyDefinitions.filter((def) => !def.hidden);
+
+	return propertyDefinitionsWithoutHidden.map((def) => PropertyDefinitionSchema.parse(def));
 }

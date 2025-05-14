@@ -1,7 +1,7 @@
 import { McpAgent } from "agents/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { getFeatureFlagDefinition, getFeatureFlags, getOrganizations, getProjects } from "./posthogApi";
+import { getFeatureFlagDefinition, getFeatureFlags, getOrganizations, getProjects, getPropertyDefinitions } from "./posthogApi";
 
 // Define our MCP agent with tools
 export class MyMCP extends McpAgent<Env> {
@@ -30,8 +30,8 @@ export class MyMCP extends McpAgent<Env> {
 					if (flagId) {
 						flagDefinition = await getFeatureFlagDefinition(String(flagId), posthogToken);
 						return { content: [{ type: "text", text: JSON.stringify(flagDefinition) }] };
-					} 
-					
+					}
+
 					if (flagName) {
 						const allFlags = await getFeatureFlags(posthogToken);
 						const foundFlag = allFlags.find(f => f.key === flagName);
@@ -57,7 +57,7 @@ export class MyMCP extends McpAgent<Env> {
 					const organizations = await getOrganizations(this.env.POSTHOG_API_TOKEN);
 					console.log("organizations", organizations);
 					return { content: [{ type: "text", text: JSON.stringify(organizations) }] };
-				} catch(error) {
+				} catch (error) {
 					console.error("Error fetching organizations:", error);
 					return { content: [{ type: "text", text: "Error fetching organizations" }] };
 				}
@@ -73,10 +73,20 @@ export class MyMCP extends McpAgent<Env> {
 					const projects = await getProjects(orgId, this.env.POSTHOG_API_TOKEN);
 					console.log("projects", projects);
 					return { content: [{ type: "text", text: JSON.stringify(projects) }] };
-				} catch(error) {
+				} catch (error) {
 					console.error("Error fetching projects:", error);
 					return { content: [{ type: "text", text: "Error fetching projects" }] };
 				}
+			}
+
+		);
+
+		this.server.tool(
+			"property-definitions",
+			{},
+			async () => {
+				const propertyDefinitions = await getPropertyDefinitions({ apiToken: this.env.POSTHOG_API_TOKEN });
+				return { content: [{ type: "text", text: JSON.stringify(propertyDefinitions) }] };
 			}
 		);
 	}
