@@ -1,7 +1,7 @@
 import { McpAgent } from "agents/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { getFeatureFlagDefinition } from "./posthogApi";
+import { getFeatureFlagDefinition, getPropertyDefinitions } from "./posthogApi";
 
 // Define our MCP agent with tools
 export class MyMCP extends McpAgent<Env> {
@@ -75,7 +75,16 @@ export class MyMCP extends McpAgent<Env> {
 					return { content: [{ type: "text", text: "Error fetching feature flag" }] };
 				}
 			}
-		);	
+		);
+
+		this.server.tool(
+			"property-definitions",
+			{},
+			async () => {
+				const propertyDefinitions = await getPropertyDefinitions({ apiToken: this.env.POSTHOG_API_TOKEN });
+				return { content: [{ type: "text", text: JSON.stringify(propertyDefinitions) }] };
+			}
+		);
 	}
 }
 
