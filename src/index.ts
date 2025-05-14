@@ -130,10 +130,11 @@ export class MyMCP extends McpAgent<Env> {
 				description: z.string(),
 				filters: FilterGroupsSchema,
 				active: z.boolean(),
+				projectId: z.string(),
 			},
-			async ({ name, key, description, filters, active }) => {
+			async ({ name, key, description, filters, active, projectId }) => {
 
-				const featureFlag = await createFeatureFlag(this.env.POSTHOG_API_TOKEN, { name, key, description, filters, active });
+				const featureFlag = await createFeatureFlag({ projectId: projectId, apiToken: this.env.POSTHOG_API_TOKEN, data: { name, key, description, filters, active } });
 				return { content: [{ type: "text", text: JSON.stringify(featureFlag) }] };
 			}
 		);

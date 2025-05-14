@@ -1,6 +1,6 @@
 import { ApiPropertyDefinitionSchema } from "./schema/api";
 import { withPagination } from "./lib/utils/api";
-import { FeatureFlagSchema, type ApiCreateFeatureFlagInput, type CreateFeatureFlagInput, type FeatureFlag, type PostHogFeatureFlag } from "./schema/flags";
+import { type CreateFeatureFlagInput, type FeatureFlag, type PostHogFeatureFlag } from "./schema/flags";
 import type { PostHogFlagsResponse } from "./schema/flags";
 import { PropertyDefinitionSchema } from "./schema/properties";
 
@@ -78,11 +78,11 @@ export async function getPropertyDefinitions({ projectId, apiToken }: { projectI
 	return propertyDefinitionsWithoutHidden.map((def) => PropertyDefinitionSchema.parse(def));
 }
 
-export async function createFeatureFlag(apiToken: string, data: CreateFeatureFlagInput) {
+export async function createFeatureFlag({ projectId, apiToken, data }: { projectId: string, apiToken: string, data: CreateFeatureFlagInput }) {
 
 	const body = { "key": data.key, "name": data.name, "description": data.description, "active": data.active, "filters": data.filters }
 
-	const response = await fetch(`https://us.posthog.com/api/projects/99423/feature_flags/`, {
+	const response = await fetch(`https://us.posthog.com/api/projects/${projectId}/feature_flags/`, {
 		method: "POST",
 		headers: {
 			Authorization: `Bearer ${apiToken}`,
