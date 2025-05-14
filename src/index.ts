@@ -1,22 +1,35 @@
 import { McpAgent } from "agents/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { createFeatureFlag, getFeatureFlagDefinition, getFeatureFlags, getOrganizations, getProjects, getPropertyDefinitions } from "./posthogApi";
-import { FilterGroupsSchema, FiltersSchema } from "./schema/flags";
+import { createFeatureFlag, getFeatureFlagDefinition, getFeatureFlags, getOrganizationDetails, getOrganizations, getProjects, getPropertyDefinitions } from "./posthogApi";
+import { FilterGroupsSchema } from "./schema/flags";
+
+
+const INSTRUCTIONS = `
+- You are a helpful assistant that can query PostHog API.
+- Before using any of the tools, clarify which project the user wants to query - use the 'projects-get' tool - it doesn't require the orgId arg.
+- Then return the full list of project names and IDs and ask the user to select one. 
+- Keep this project ID in scope unless the user asks to change.
+- If some resource from another tool is not found, ask the user if they want to try finding it in another project.
+`
+
+// Define our MCP agent with tools
 export class MyMCP extends McpAgent<Env> {
 	server = new McpServer({
-		name: "PostHog",
-		version: "0.1",
+		name: "PostHog MCP",
+		version: "1.0.0",
+		instructions: INSTRUCTIONS,
 	});
 
 	async init() {
 		this.server.tool(
 			"feature-flag-get-definition",
 			{
+				projectId: z.string(),
 				flagId: z.string().optional(),
 				flagName: z.string().optional(),
 			},
-			async ({ flagId, flagName }) => {
+			async ({ projectId, flagId, flagName }) => {
 				const posthogToken = this.env.POSTHOG_API_TOKEN;
 
 				if (!flagId && !flagName) {
@@ -27,12 +40,12 @@ export class MyMCP extends McpAgent<Env> {
 					let flagDefinition: any;
 
 					if (flagId) {
-						flagDefinition = await getFeatureFlagDefinition(String(flagId), posthogToken);
+						flagDefinition = await getFeatureFlagDefinition(projectId, String(flagId), posthogToken);
 						return { content: [{ type: "text", text: JSON.stringify(flagDefinition) }] };
 					}
 
 					if (flagName) {
-						const allFlags = await getFeatureFlags(posthogToken);
+						const allFlags = await getFeatureFlags(projectId, posthogToken);
 						const foundFlag = allFlags.find(f => f.key === flagName);
 						if (foundFlag) {
 							return { content: [{ type: "text", text: JSON.stringify(foundFlag) }] };
@@ -62,10 +75,28 @@ export class MyMCP extends McpAgent<Env> {
 				}
 			}
 		);
+
+		this.server.tool(
+			"organization-details-get",
+			{
+				orgId: z.string().optional(),
+			},
+			async ({ orgId }) => {
+				try {
+					const organizationDetails = await getOrganizationDetails(orgId, this.env.POSTHOG_API_TOKEN);
+					console.log("organization details", organizationDetails);
+					return { content: [{ type: "text", text: JSON.stringify(organizationDetails) }] };
+				} catch (error) {
+					console.error("Error fetching organization details:", error);
+					return { content: [{ type: "text", text: "Error fetching organization details" }] };
+				}
+			}
+		);
+
 		this.server.tool(
 			"projects-get",
 			{
-				orgId: z.string(),
+				orgId: z.string().optional(),
 			},
 			async ({ orgId }) => {
 				try {
@@ -82,9 +113,11 @@ export class MyMCP extends McpAgent<Env> {
 
 		this.server.tool(
 			"property-definitions",
-			{},
-			async () => {
-				const propertyDefinitions = await getPropertyDefinitions({ apiToken: this.env.POSTHOG_API_TOKEN });
+			{
+				projectId: z.string(),
+			},
+			async ({ projectId }) => {
+				const propertyDefinitions = await getPropertyDefinitions({ projectId: projectId, apiToken: this.env.POSTHOG_API_TOKEN });
 				return { content: [{ type: "text", text: JSON.stringify(propertyDefinitions) }] };
 			}
 		);
