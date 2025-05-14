@@ -4,11 +4,20 @@ import { z } from "zod";
 import { getFeatureFlagDefinition, getFeatureFlags, getOrganizationDetails, getOrganizations, getProjects, getPropertyDefinitions } from "./posthogApi";
 
 
+const INSTRUCTIONS = `
+- You are a helpful assistant that can query PostHog API.
+- Before using any of the tools, clarify which project the user wants to query - use the 'projects-get' tool - it doesn't require the orgId arg.
+- Then return the full list of project names and IDs and ask the user to select one. 
+- Keep this project ID in scope unless the user asks to change.
+- If some resource from another tool is not found, ask the user if they want to try finding it in another project.
+`
+
 // Define our MCP agent with tools
 export class MyMCP extends McpAgent<Env> {
 	server = new McpServer({
-		name: "Authless Calculator",
+		name: "PostHog MCP",
 		version: "1.0.0",
+		instructions: INSTRUCTIONS,
 	});
 
 	async init() {
