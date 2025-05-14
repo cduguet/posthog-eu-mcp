@@ -1,13 +1,12 @@
 import { McpAgent } from "agents/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { getFeatureFlagDefinition, getFeatureFlags, getOrganizations, getProjects, getPropertyDefinitions } from "./posthogApi";
-
-// Define our MCP agent with tools
+import { createFeatureFlag, getFeatureFlagDefinition, getFeatureFlags, getOrganizations, getProjects, getPropertyDefinitions } from "./posthogApi";
+import { FilterGroupsSchema, FiltersSchema } from "./schema/flags";
 export class MyMCP extends McpAgent<Env> {
 	server = new McpServer({
-		name: "Authless Calculator",
-		version: "1.0.0",
+		name: "PostHog",
+		version: "0.1",
 	});
 
 	async init() {
@@ -87,6 +86,22 @@ export class MyMCP extends McpAgent<Env> {
 			async () => {
 				const propertyDefinitions = await getPropertyDefinitions({ apiToken: this.env.POSTHOG_API_TOKEN });
 				return { content: [{ type: "text", text: JSON.stringify(propertyDefinitions) }] };
+			}
+		);
+
+		this.server.tool(
+			"create-feature-flag",
+			{
+				name: z.string(),
+				key: z.string(),
+				description: z.string(),
+				filters: FilterGroupsSchema,
+				active: z.boolean(),
+			},
+			async ({ name, key, description, filters, active }) => {
+
+				const featureFlag = await createFeatureFlag(this.env.POSTHOG_API_TOKEN, { name, key, description, filters, active });
+				return { content: [{ type: "text", text: JSON.stringify(featureFlag) }] };
 			}
 		);
 	}
