@@ -40,7 +40,7 @@ export async function getOrganizations(apiToken: string) {
 		}
 	});
 	if (!response.ok) {
-		throw new Error(`Failed to fetch feature flags: ${response.statusText}`);
+		throw new Error(`Failed to fetch organizations: ${response.statusText}`);
 	}
 	return response.json();
 } 
