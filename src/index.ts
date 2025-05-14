@@ -5,10 +5,6 @@ import { createFeatureFlag, deleteFeatureFlag, getFeatureFlagDefinition, getFeat
 import { FilterGroupsSchema } from "./schema/flags";
 import { docsSearch } from "./inkeepApi";
 
-interface Env {
-	POSTHOG_API_TOKEN: string;
-	INKEEP_API_KEY: string;
-}
 
 const INSTRUCTIONS = `
 - You are a helpful assistant that can query PostHog API.
@@ -30,6 +26,7 @@ export class MyMCP extends McpAgent<Env> {
 	async init() {
 		this.server.tool(
 			"feature-flag-get-definition",
+			"Use this tool to get the definition of a feature flag. You can provide either the flagId or the flagName. If you provide both, the flagId will be used.",
 			{
 				projectId: z.string(),
 				flagId: z.string().optional(),
@@ -69,6 +66,7 @@ export class MyMCP extends McpAgent<Env> {
 		);
 		this.server.tool(
 			"docs-search",
+			"Use this tool to search the PostHog documentation for information that can help the user with their request. Use it as a fallback when you cannot answer the user's request using other tools in this MCP.",
 			{
 				query: z.string(),
 			},
@@ -121,6 +119,7 @@ export class MyMCP extends McpAgent<Env> {
 
 		this.server.tool(
 			"projects-get",
+			"Fetches projects that the user has access to - the orgId is optional. Use this tool before you use any other tools (besides organization-* and docs-search) to allow user to select the project they want to use for subsequent requests.",
 			{
 				orgId: z.string().optional(),
 			},
@@ -180,9 +179,8 @@ export class MyMCP extends McpAgent<Env> {
 
 				if (!flag) {
 					return {
-						success: true,
-						message: "Feature flag is already deleted."
-					}
+						content: [{ type: "text", text: "Feature flag is already deleted." }]
+					};
 				}
 
 				const featureFlag = await deleteFeatureFlag({ projectId: projectId, apiToken: this.env.POSTHOG_API_TOKEN, flagId: flag.id });

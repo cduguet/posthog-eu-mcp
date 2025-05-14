@@ -5,6 +5,7 @@ declare namespace Cloudflare {
 	interface Env {
 		MCP_OBJECT: DurableObjectNamespace<import("./src/index").MyMCP>;
 		POSTHOG_API_TOKEN: string;
+		INKEEP_API_KEY: string;
 	}
 }
 interface Env extends Cloudflare.Env {}
