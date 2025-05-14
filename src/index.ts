@@ -1,7 +1,8 @@
 import { McpAgent } from "agents/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { getFeatureFlagDefinition, getOrganizations, getOrganizationDetails, getProjects } from "./posthogApi";
+import { getFeatureFlagDefinition, getFeatureFlags, getOrganizationDetails, getOrganizations, getProjects, getPropertyDefinitions } from "./posthogApi";
+
 
 // Define our MCP agent with tools
 export class MyMCP extends McpAgent<Env> {
@@ -15,18 +16,38 @@ export class MyMCP extends McpAgent<Env> {
 			"feature-flag-get-definition",
 			{
 				projectId: z.string(),
-				flagId: z.string(),
+				flagId: z.string().optional(),
+				flagName: z.string().optional(),
 			},
-			async ({ projectId, flagId }) => {
-				console.log("this.env", this.env);
+			async ({ projectId, flagId, flagName }) => {
 				const posthogToken = this.env.POSTHOG_API_TOKEN;
+
+				if (!flagId && !flagName) {
+					return { content: [{ type: "text", text: "Error: Either flagId or flagName must be provided." }] };
+				}
+
 				try {
-					const flagDefinition = await getFeatureFlagDefinition(projectId, flagId, posthogToken);
-					console.log("flagDefinition", flagDefinition);
-					return { content: [{ type: "text", text: JSON.stringify(flagDefinition) }] };
-				} catch (error) {
-					console.error("Error fetching feature flag:", error);
-					return { content: [{ type: "text", text: "Error fetching feature flag" }] };
+					let flagDefinition: any;
+
+					if (flagId) {
+						flagDefinition = await getFeatureFlagDefinition(projectId, String(flagId), posthogToken);
+						return { content: [{ type: "text", text: JSON.stringify(flagDefinition) }] };
+					}
+
+					if (flagName) {
+						const allFlags = await getFeatureFlags(projectId, posthogToken);
+						const foundFlag = allFlags.find(f => f.key === flagName);
+						if (foundFlag) {
+							return { content: [{ type: "text", text: JSON.stringify(foundFlag) }] };
+						} else {
+							return { content: [{ type: "text", text: `Error: Flag with name "${flagName}" not found.` }] };
+						}
+					}
+
+					return { content: [{ type: "text", text: "Error: Could not determine or find the feature flag." }] };
+				} catch (error: any) {
+					console.error("Error in feature-flag-get-definition tool:", error);
+					return { content: [{ type: "text", text: `Error: ${error.message || "Failed to process feature flag request"}` }] };
 				}
 			}
 		);
@@ -38,7 +59,7 @@ export class MyMCP extends McpAgent<Env> {
 					const organizations = await getOrganizations(this.env.POSTHOG_API_TOKEN);
 					console.log("organizations", organizations);
 					return { content: [{ type: "text", text: JSON.stringify(organizations) }] };
-				} catch(error) {
+				} catch (error) {
 					console.error("Error fetching organizations:", error);
 					return { content: [{ type: "text", text: "Error fetching organizations" }] };
 				}
@@ -72,10 +93,22 @@ export class MyMCP extends McpAgent<Env> {
 					const projects = await getProjects(orgId, this.env.POSTHOG_API_TOKEN);
 					console.log("projects", projects);
 					return { content: [{ type: "text", text: JSON.stringify(projects) }] };
-				} catch(error) {
+				} catch (error) {
 					console.error("Error fetching projects:", error);
 					return { content: [{ type: "text", text: "Error fetching projects" }] };
 				}
+			}
+
+		);
+
+		this.server.tool(
+			"property-definitions",
+			{
+				projectId: z.string(),
+			},
+			async ({ projectId }) => {
+				const propertyDefinitions = await getPropertyDefinitions({ projectId: projectId, apiToken: this.env.POSTHOG_API_TOKEN });
+				return { content: [{ type: "text", text: JSON.stringify(propertyDefinitions) }] };
 			}
 		);
 	}
