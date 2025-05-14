@@ -1,7 +1,7 @@
 import { McpAgent } from "agents/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { createFeatureFlag, getFeatureFlagDefinition, getFeatureFlags, getOrganizationDetails, getOrganizations, getProjects, getPropertyDefinitions } from "./posthogApi";
+import { createFeatureFlag, deleteFeatureFlag, getFeatureFlagDefinition, getFeatureFlags, getOrganizationDetails, getOrganizations, getProjects, getPropertyDefinitions } from "./posthogApi";
 import { FilterGroupsSchema } from "./schema/flags";
 
 
@@ -135,6 +135,32 @@ export class MyMCP extends McpAgent<Env> {
 			async ({ name, key, description, filters, active, projectId }) => {
 
 				const featureFlag = await createFeatureFlag({ projectId: projectId, apiToken: this.env.POSTHOG_API_TOKEN, data: { name, key, description, filters, active } });
+				return { content: [{ type: "text", text: JSON.stringify(featureFlag) }] };
+			}
+		);
+
+
+		this.server.tool(
+			"delete-feature-flag",
+			{
+				projectId: z.string(),
+				key: z.string(),
+			},
+			async ({ projectId, key }) => {
+
+				const allFlags = await getFeatureFlags(projectId, this.env.POSTHOG_API_TOKEN);
+
+				const flag = allFlags.find(f => f.key === key);
+
+				if (!flag) {
+					return {
+						success: true,
+						message: "Feature flag is already deleted."
+					}
+				}
+
+				const featureFlag = await deleteFeatureFlag({ projectId: projectId, apiToken: this.env.POSTHOG_API_TOKEN, flagId: flag.id });
+
 				return { content: [{ type: "text", text: JSON.stringify(featureFlag) }] };
 			}
 		);

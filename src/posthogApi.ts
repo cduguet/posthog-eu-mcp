@@ -108,3 +108,24 @@ export async function createFeatureFlag({ projectId, apiToken, data }: { project
 
 	return responseData;
 }
+
+
+export async function deleteFeatureFlag({ projectId, apiToken, flagId }: { projectId: string, apiToken: string, flagId: number }) {
+	const response = await fetch(`https://us.posthog.com/api/projects/${projectId}/feature_flags/${flagId}/`, {
+		method: "PATCH",
+		body: JSON.stringify({ "deleted": true }),
+		headers: {
+			Authorization: `Bearer ${apiToken}`,
+			"Content-Type": "application/json"
+		}
+	});
+
+	if (!response.ok) {
+		throw new Error(`Failed to delete feature flag: ${response.statusText}`);
+	}
+
+	return {
+		success: true,
+		message: "Feature flag deleted successfully"
+	}
+}
