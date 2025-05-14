@@ -4,8 +4,8 @@ import type { PostHogFeatureFlag } from "./schema/flags";
 import type { PostHogFlagsResponse } from "./schema/flags";
 import { PropertyDefinitionSchema } from "./schema/properties";
 
-export async function getFeatureFlagDefinition(flag: string, apiToken: string) {
-	const response = await fetch(`https://us.posthog.com/api/projects/99423/feature_flags/${flag}/`, {
+export async function getFeatureFlagDefinition(projectId: string, flagId: string, apiToken: string) {
+	const response = await fetch(`https://us.posthog.com/api/projects/${projectId}/feature_flags/${flagId}/`, {
 		headers: {
 			Authorization: `Bearer ${apiToken}`
 		}
@@ -15,8 +15,8 @@ export async function getFeatureFlagDefinition(flag: string, apiToken: string) {
 	}
 	return response.json();
 }
-export async function getFeatureFlags(apiToken: string): Promise<PostHogFeatureFlag[]> {
-	const response = await fetch(`https://us.posthog.com/api/projects/99423/feature_flags/`, {
+export async function getFeatureFlags(projectId: string, apiToken: string): Promise<PostHogFeatureFlag[]> {
+	const response = await fetch(`https://us.posthog.com/api/projects/${projectId}/feature_flags/`, {
 		headers: {
 			Authorization: `Bearer ${apiToken}`
 		}
@@ -29,6 +29,7 @@ export async function getFeatureFlags(apiToken: string): Promise<PostHogFeatureF
 }
 
 export async function getOrganizations(apiToken: string) {
+	console.log("loading organizations")
 	const response = await fetch(`https://us.posthog.com/api/organizations/`, {
 		headers: {
 			Authorization: `Bearer ${apiToken}`
@@ -40,8 +41,24 @@ export async function getOrganizations(apiToken: string) {
 	return response.json();
 }
 
-export async function getProjects(orgId: string, apiToken: string) {
-	const response = await fetch(`https://us.posthog.com/api/organizations/${orgId}/projects/`, {
+export async function getOrganizationDetails(orgId: string | undefined, apiToken: string) {
+	const orgIdToUse = orgId ?? '@current'
+	console.log("loading organization details", orgIdToUse)
+	const response = await fetch(`https://us.posthog.com/api/organizations/${orgIdToUse}/`, {
+		headers: {
+			Authorization: `Bearer ${apiToken}`
+		}
+	});
+	if (!response.ok) {
+		throw new Error(`Failed to fetch organization details: ${response.statusText}`);
+	}
+	return response.json();
+}
+
+export async function getProjects(orgId: string | undefined, apiToken: string) {
+	const orgIdToUse = orgId ?? '@current'
+	console.log("loading projects", orgIdToUse)
+	const response = await fetch(`https://us.posthog.com/api/organizations/${orgIdToUse}/projects/`, {
 		headers: {
 			Authorization: `Bearer ${apiToken}`
 		}
@@ -52,8 +69,9 @@ export async function getProjects(orgId: string, apiToken: string) {
 	return response.json();
 }
 
-export async function getPropertyDefinitions({ apiToken }: { apiToken: string }) {
-	const propertyDefinitions = await withPagination(`https://us.posthog.com/api/projects/99423/property_definitions/`, apiToken, ApiPropertyDefinitionSchema);
+export async function getPropertyDefinitions({ projectId, apiToken }: { projectId: string, apiToken: string }) {
+	console.log("loading property definitions", projectId)
+	const propertyDefinitions = await withPagination(`https://us.posthog.com/api/projects/${projectId}/property_definitions/`, apiToken, ApiPropertyDefinitionSchema);
 
 	const propertyDefinitionsWithoutHidden = propertyDefinitions.filter((def) => !def.hidden);
 
