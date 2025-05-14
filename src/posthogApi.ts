@@ -1,6 +1,6 @@
 import { ApiPropertyDefinitionSchema } from "./schema/api";
 import { withPagination } from "./lib/utils/api";
-import type { PostHogFeatureFlag } from "./schema/flags";
+import { type CreateFeatureFlagInput, type FeatureFlag, type PostHogFeatureFlag } from "./schema/flags";
 import type { PostHogFlagsResponse } from "./schema/flags";
 import { PropertyDefinitionSchema } from "./schema/properties";
 
@@ -76,4 +76,35 @@ export async function getPropertyDefinitions({ projectId, apiToken }: { projectI
 	const propertyDefinitionsWithoutHidden = propertyDefinitions.filter((def) => !def.hidden);
 
 	return propertyDefinitionsWithoutHidden.map((def) => PropertyDefinitionSchema.parse(def));
+}
+
+export async function createFeatureFlag({ projectId, apiToken, data }: { projectId: string, apiToken: string, data: CreateFeatureFlagInput }) {
+
+	const body = { "key": data.key, "name": data.name, "description": data.description, "active": data.active, "filters": data.filters }
+
+	const response = await fetch(`https://us.posthog.com/api/projects/${projectId}/feature_flags/`, {
+		method: "POST",
+		headers: {
+			Authorization: `Bearer ${apiToken}`,
+			"Content-Type": "application/json"
+		},
+		body: JSON.stringify(body)
+	});
+
+
+
+	if (!response.ok) {
+
+		const responseData = await response.json() as { type?: string, code?: string };
+
+		if (responseData.type === "validation_error" && responseData.code === "unique") {
+			throw new Error("Feature flag already exists with this key");
+		}
+
+		throw new Error(`Failed to create feature flag: ${response.statusText}`);
+	}
+
+	const responseData = await response.json();
+
+	return responseData;
 }
