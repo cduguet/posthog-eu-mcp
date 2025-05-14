@@ -1,7 +1,7 @@
 import { McpAgent } from "agents/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { getFeatureFlagDefinition } from "./posthogApi";
+import { getFeatureFlagDefinition, getOrganizations, getProjects } from "./posthogApi";
 
 // Define our MCP agent with tools
 export class MyMCP extends McpAgent<Env> {
@@ -11,53 +11,6 @@ export class MyMCP extends McpAgent<Env> {
 	});
 
 	async init() {
-		// Simple addition tool
-		this.server.tool(
-			"add",
-			{ a: z.number(), b: z.number() },
-			async ({ a, b }) => ({
-				content: [{ type: "text", text: String(a + b) }],
-			})
-		);
-
-		// Calculator tool with multiple operations
-		this.server.tool(
-			"calculate",
-			{
-				operation: z.enum(["add", "subtract", "multiply", "divide"]),
-				a: z.number(),
-				b: z.number(),
-			},
-			async ({ operation, a, b }) => {
-				// access token via this.env.POSTHOG_API_TOKEN
-				let result: number;
-				switch (operation) {
-					case "add":
-						result = a + b;
-						break;
-					case "subtract":
-						result = a - b;
-						break;
-					case "multiply":
-						result = a * b;
-						break;
-					case "divide":
-						if (b === 0)
-							return {
-								content: [
-									{
-										type: "text",
-										text: "Error: Cannot divide by zero",
-									},
-								],
-							};
-						result = a / b;
-						break;
-				}
-				return { content: [{ type: "text", text: String(result) }] };
-			}
-		);
-
 		this.server.tool(
 			"feature-flag-get-definition",
 			{
@@ -75,7 +28,37 @@ export class MyMCP extends McpAgent<Env> {
 					return { content: [{ type: "text", text: "Error fetching feature flag" }] };
 				}
 			}
-		);	
+		);
+		this.server.tool(
+			"organizations-get",
+			{},
+			async () => {
+				try {
+					const organizations = await getOrganizations(this.env.POSTHOG_API_TOKEN);
+					console.log("organizations", organizations);
+					return { content: [{ type: "text", text: JSON.stringify(organizations) }] };
+				} catch(error) {
+					console.error("Error fetching organizations:", error);
+					return { content: [{ type: "text", text: "Error fetching organizations" }] };
+				}
+			}
+		);
+		this.server.tool(
+			"projects-get",
+			{
+				orgId: z.string(),
+			},
+			async ({ orgId }) => {
+				try {
+					const projects = await getProjects(orgId, this.env.POSTHOG_API_TOKEN);
+					console.log("projects", projects);
+					return { content: [{ type: "text", text: JSON.stringify(projects) }] };
+				} catch(error) {
+					console.error("Error fetching projects:", error);
+					return { content: [{ type: "text", text: "Error fetching projects" }] };
+				}
+			}
+		);
 	}
 }
 
