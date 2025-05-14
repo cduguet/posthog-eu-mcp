@@ -70,6 +70,7 @@ export async function getProjects(orgId: string | undefined, apiToken: string) {
 }
 
 export async function getPropertyDefinitions({ projectId, apiToken }: { projectId: string, apiToken: string }) {
+	console.log("loading property definitions", projectId)
 	const propertyDefinitions = await withPagination(`https://us.posthog.com/api/projects/${projectId}/property_definitions/`, apiToken, ApiPropertyDefinitionSchema);
 
 	const propertyDefinitionsWithoutHidden = propertyDefinitions.filter((def) => !def.hidden);
