@@ -3,7 +3,12 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { createFeatureFlag, getFeatureFlagDefinition, getFeatureFlags, getOrganizationDetails, getOrganizations, getProjects, getPropertyDefinitions } from "./posthogApi";
 import { FilterGroupsSchema } from "./schema/flags";
+import { docsSearch } from "./inkeepApi";
 
+interface Env {
+	POSTHOG_API_TOKEN: string;
+	INKEEP_API_KEY: string;
+}
 
 const INSTRUCTIONS = `
 - You are a helpful assistant that can query PostHog API.
@@ -11,6 +16,7 @@ const INSTRUCTIONS = `
 - Then return the full list of project names and IDs and ask the user to select one. 
 - Keep this project ID in scope unless the user asks to change.
 - If some resource from another tool is not found, ask the user if they want to try finding it in another project.
+- If you cannot answer the user's PostHog related request or question using other available tools in this MCP, use the 'docs-search' tool to provide information from the documentation to guide user how they can do it themselves - when doing so provide condensed instructions with links to sources.
 `
 
 // Define our MCP agent with tools
@@ -58,6 +64,26 @@ export class MyMCP extends McpAgent<Env> {
 				} catch (error: any) {
 					console.error("Error in feature-flag-get-definition tool:", error);
 					return { content: [{ type: "text", text: `Error: ${error.message || "Failed to process feature flag request"}` }] };
+				}
+			}
+		);
+		this.server.tool(
+			"docs-search",
+			{
+				query: z.string(),
+			},
+			async ({ query }) => {
+				const inkeepApiKey = this.env.INKEEP_API_KEY;
+
+				try {
+					if (!inkeepApiKey) {
+						return { content: [{ type: "text", text: "Error: INKEEP_API_KEY is not configured." }] };
+					}
+					const resultText = await docsSearch(inkeepApiKey, query);
+					return { content: [{ type: "text", text: resultText }] };
+				} catch (error: any) {
+					console.error("Error in docs-search tool:", error);
+					return { content: [{ type: "text", text: `Error: ${error.message || "Failed to process docs search request"}` }] };
 				}
 			}
 		);
