@@ -5,6 +5,7 @@ import { z } from "zod";
 import {
 	createFeatureFlag,
 	deleteFeatureFlag,
+	errorDetails,
 	getFeatureFlagDefinition,
 	getFeatureFlags,
 	getOrganizationDetails,
@@ -22,7 +23,7 @@ import { docsSearch } from "./inkeepApi";
 import { extractDataFromSSEStream } from "./lib/utils/streaming";
 import { hash } from "./lib/utils/helper-functions";
 import { MemoryCache } from "./lib/utils/cache/MemoryCache";
-import { ListErrorsSchema } from "./schema/errors";
+import { ErrorDetailsSchema, ListErrorsSchema } from "./schema/errors";
 
 const INSTRUCTIONS = `
 - You are a helpful assistant that can query PostHog API.
@@ -301,6 +302,29 @@ export class MyMCP extends McpAgent<Env> {
 				} catch (error) {
 					console.error("Error fetching errors:", error);
 					return { content: [{ type: "text", text: "Error fetching errors" }] };
+				}
+			},
+		);
+
+		this.server.tool(
+			"error-details",
+			{
+				projectId: z.string(),
+				data: ErrorDetailsSchema,
+			},
+			async ({ projectId, data }) => {
+				try {
+					const errors = await errorDetails({
+						projectId: projectId,
+						data: data,
+						apiToken: this.env.POSTHOG_API_TOKEN,
+					});
+					const results = (errors as any).results;
+					console.log("error details results", results);
+					return { content: [{ type: "text", text: JSON.stringify(results) }] };
+				} catch (error) {
+					console.error("Error fetching error details:", error);
+					return { content: [{ type: "text", text: "Error fetching error details" }] };
 				}
 			},
 		);
