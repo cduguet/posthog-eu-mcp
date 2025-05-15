@@ -27,9 +27,6 @@ import { ErrorDetailsSchema, ListErrorsSchema } from "./schema/errors";
 
 const INSTRUCTIONS = `
 - You are a helpful assistant that can query PostHog API.
-- Before using any of the tools, clarify which project the user wants to query - use the 'projects-get' tool.
-- Then return the full list of project names and IDs and ask the user to select one. 
-- Keep this project ID in scope unless the user asks to change.
 - If some resource from another tool is not found, ask the user if they want to try finding it in another project.
 - If you cannot answer the user's PostHog related request or question using other available tools in this MCP, use the 'docs-search' tool to provide information from the documentation to guide user how they can do it themselves - when doing so provide condensed instructions with links to sources.
 `;
@@ -152,6 +149,21 @@ export class MyMCP extends McpAgent<Env> {
 		);
 
 		this.server.tool(
+			"feature-flag-get-all",
+			`
+				- Use this tool to get all feature flags in the project.
+			`,
+			{},
+			async () => {
+				const projectId = await this.getProjectId();
+
+				const allFlags = await getFeatureFlags(projectId, this.env.POSTHOG_API_TOKEN);
+
+				return { content: [{ type: "text", text: JSON.stringify(allFlags) }] };
+			},
+		);
+
+		this.server.tool(
 			"docs-search",
 			`
 				- Use this tool to search the PostHog documentation for information that can help the user with their request. 
@@ -264,6 +276,11 @@ export class MyMCP extends McpAgent<Env> {
 
 		this.server.tool(
 			"create-feature-flag",
+			`Creates a new feature flag in the project. Once you have created a feature flag, you should:
+			 - Ask the user if they want to add it to their codebase
+			 - Use the "search-docs" tool to find documentation on how to add feature flags to the codebase (search for the right language / framework)
+			 - Clarify where it should be added and then add it.
+			`,
 			{
 				name: z.string(),
 				key: z.string(),
@@ -331,6 +348,10 @@ export class MyMCP extends McpAgent<Env> {
 
 		this.server.tool(
 			"update-feature-flag",
+			`Update a new feature flag in the project.
+			- To enable a feature flag, you should make sure it is active and the rollout percentage is set to 100 for the group you want to target.
+			- To disable a feature flag, you should make sure it is inactive, you can keep the rollout percentage as it is.
+			`,
 			{
 				flagKey: z.string(),
 				data: UpdateFeatureFlagInputSchema,
@@ -432,7 +453,19 @@ export class MyMCP extends McpAgent<Env> {
 				}
 			},
 		);
+
+		// 	this.server.prompt("add-feature-flag-to-codebase", "Use this prompt to add a feature flag to the codebase", async ({
+		// 	}) => {
+		// 		return `Follow these steps to add a feature flag to the codebase:
+		// 		1. Ask the user what flag they want to add if it is not already obvious.
+		// 		2. Search for that flag, if it does not exist, create it.
+		// 		3. Search the docs for the right language / framework on how to add a feature flag - make sure you get the docs you need.
+		// 		4. Gather any context you need on how flags are used in the codebase.
+		// 		5. Add the feature flag to the codebase.
+		// 		`
+		// 	})
 	}
+
 }
 
 export default {

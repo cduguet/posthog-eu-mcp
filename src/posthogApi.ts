@@ -1,9 +1,10 @@
 import { ApiPropertyDefinitionSchema } from "./schema/api";
 import { withPagination } from "./lib/utils/api";
-import type { CreateFeatureFlagInput, FeatureFlag, PostHogFeatureFlag } from "./schema/flags";
-import type { PostHogFlagsResponse, UpdateFeatureFlagInput } from "./schema/flags";
+import { FeatureFlagSchema, type CreateFeatureFlagInput, type FeatureFlag, type PostHogFeatureFlag } from "./schema/flags";
+import type { UpdateFeatureFlagInput } from "./schema/flags";
 import { PropertyDefinitionSchema } from "./schema/properties";
 import type { Project } from "./schema/projects";
+import { BASE_URL } from "./lib/constants"
 import {
 	type ErrorDetailsData,
 	type ListErrorsData,
@@ -19,7 +20,7 @@ export async function getFeatureFlagDefinition(
 	apiToken: string,
 ) {
 	const response = await fetch(
-		`https://us.posthog.com/api/projects/${projectId}/feature_flags/${flagId}/`,
+		`${BASE_URL}/api/projects/${projectId}/feature_flags/${flagId}/`,
 		{
 			headers: {
 				Authorization: `Bearer ${apiToken}`,
@@ -35,24 +36,23 @@ export async function getFeatureFlags(
 	projectId: string,
 	apiToken: string,
 ): Promise<PostHogFeatureFlag[]> {
-	const response = await fetch(
-		`https://us.posthog.com/api/projects/${projectId}/feature_flags/`,
-		{
-			headers: {
-				Authorization: `Bearer ${apiToken}`,
-			},
-		},
+	const response = await withPagination(
+		`${BASE_URL}/api/projects/${projectId}/feature_flags/`,
+		apiToken,
+		FeatureFlagSchema.pick({
+			id: true,
+			key: true,
+			name: true,
+			active: true,
+		}),
 	);
-	if (!response.ok) {
-		throw new Error(`Failed to fetch feature flags: ${response.statusText}`);
-	}
-	const data = (await response.json()) as PostHogFlagsResponse;
-	return data.results || [];
+
+	return response;
 }
 
 export async function getOrganizations(apiToken: string) {
 	console.log("loading organizations");
-	const response = await fetch("https://us.posthog.com/api/organizations/", {
+	const response = await fetch(`${BASE_URL}/api/organizations/`, {
 		headers: {
 			Authorization: `Bearer ${apiToken}`,
 		},
@@ -66,7 +66,7 @@ export async function getOrganizations(apiToken: string) {
 export async function getOrganizationDetails(orgId: string | undefined, apiToken: string) {
 	const orgIdToUse = orgId ?? "@current";
 	console.log("loading organization details", orgIdToUse);
-	const response = await fetch(`https://us.posthog.com/api/organizations/${orgIdToUse}/`, {
+	const response = await fetch(`${BASE_URL}/api/organizations/${orgIdToUse}/`, {
 		headers: {
 			Authorization: `Bearer ${apiToken}`,
 		},
@@ -80,8 +80,11 @@ export async function getOrganizationDetails(orgId: string | undefined, apiToken
 export async function getProjects(orgId: string | undefined, apiToken: string): Promise<Project[]> {
 	const orgIdToUse = orgId ?? "@current";
 	console.log("loading projects", orgIdToUse);
+
+	console.log(`${BASE_URL}/api/organizations/${orgIdToUse}/projects/`);
+	console.log(`Bearer ${apiToken}`);
 	const response = await fetch(
-		`https://us.posthog.com/api/organizations/${orgIdToUse}/projects/`,
+		`${BASE_URL}/api/organizations/${orgIdToUse}/projects/`,
 		{
 			headers: {
 				Authorization: `Bearer ${apiToken}`,
@@ -100,7 +103,7 @@ export async function getPropertyDefinitions({
 }: { projectId: string; apiToken: string }) {
 	console.log("loading property definitions", projectId);
 	const propertyDefinitions = await withPagination(
-		`https://us.posthog.com/api/projects/${projectId}/property_definitions/`,
+		`${BASE_URL}/api/projects/${projectId}/property_definitions/`,
 		apiToken,
 		ApiPropertyDefinitionSchema,
 	);
@@ -125,7 +128,7 @@ export async function createFeatureFlag({
 	};
 
 	const response = await fetch(
-		`https://us.posthog.com/api/projects/${projectId}/feature_flags/`,
+		`${BASE_URL}/api/projects/${projectId}/feature_flags/`,
 		{
 			method: "POST",
 			headers: {
@@ -183,7 +186,7 @@ export async function listErrors({
 	};
 	console.log("data", body);
 
-	const response = await fetch(`https://us.posthog.com/api/environments/${projectId}/query/`, {
+	const response = await fetch(`${BASE_URL}/api/environments/${projectId}/query/`, {
 		method: "POST",
 		headers: {
 			Authorization: `Bearer ${apiToken}`,
@@ -262,7 +265,7 @@ export async function updateFeatureFlag({
 	};
 
 	const response = await fetch(
-		`https://us.posthog.com/api/projects/${projectId}/feature_flags/${flag.id}/`,
+		`${BASE_URL}/api/projects/${projectId}/feature_flags/${flag.id}/`,
 		{
 			method: "PATCH",
 			headers: {
@@ -288,7 +291,7 @@ export async function deleteFeatureFlag({
 	flagId,
 }: { projectId: string; apiToken: string; flagId: number }) {
 	const response = await fetch(
-		`https://us.posthog.com/api/projects/${projectId}/feature_flags/${flagId}/`,
+		`${BASE_URL}/api/projects/${projectId}/feature_flags/${flagId}/`,
 		{
 			method: "PATCH",
 			body: JSON.stringify({ deleted: true }),
@@ -324,7 +327,7 @@ export async function getSqlInsight({
 	};
 
 	const response = await fetch(
-		`https://us.posthog.com/api/environments/${projectId}/max_tools/create_and_query_insight/`,
+		`${BASE_URL}/api/environments/${projectId}/max_tools/create_and_query_insight/`,
 		{
 			method: "POST",
 			headers: {
