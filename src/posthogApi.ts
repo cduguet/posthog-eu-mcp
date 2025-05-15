@@ -4,7 +4,13 @@ import type { CreateFeatureFlagInput, FeatureFlag, PostHogFeatureFlag } from "./
 import type { PostHogFlagsResponse, UpdateFeatureFlagInput } from "./schema/flags";
 import { PropertyDefinitionSchema } from "./schema/properties";
 import type { Project } from "./schema/projects";
-import { type ListErrorsData, ListErrorsSchema, OrderByErrors, OrderDirectionErrors, StatusErrors } from "./schema/errors";
+import {
+	type ListErrorsData,
+	ListErrorsSchema,
+	OrderByErrors,
+	OrderDirectionErrors,
+	StatusErrors,
+} from "./schema/errors";
 
 export async function getFeatureFlagDefinition(
 	projectId: string,
@@ -163,7 +169,6 @@ export async function listErrors({
 		query: {
 			kind: "ErrorTrackingQuery",
 			orderBy: orderByToUse,
-			status: "active",
 			dateRange: {
 				date_from: dateFromToUse,
 				date_to: dateToToUse,
@@ -261,4 +266,44 @@ export async function deleteFeatureFlag({
 		success: true,
 		message: "Feature flag deleted successfully",
 	};
+}
+
+export async function getSqlInsight({
+	projectId,
+	apiToken,
+	query,
+}: {
+	projectId: string;
+	apiToken: string;
+	query: string;
+}): Promise<ReadableStream<Uint8Array>> {
+	const requestBody = {
+		query: query,
+		insight_type: "sql",
+	};
+
+	const response = await fetch(
+		`https://us.posthog.com/api/environments/${projectId}/max_tools/create_and_query_insight/`,
+		{
+			method: "POST",
+			headers: {
+				Authorization: `Bearer ${apiToken}`,
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify(requestBody),
+		},
+	);
+
+	if (!response.ok) {
+		const errorText = await response.text();
+		throw new Error(
+			`Failed to create and query SQL insight: ${response.statusText}. Details: ${errorText}`,
+		);
+	}
+
+	if (!response.body) {
+		throw new Error("Response body is null, but an SSE stream was expected.");
+	}
+
+	return response.body;
 }

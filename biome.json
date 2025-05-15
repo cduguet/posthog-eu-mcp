@@ -19,7 +19,8 @@
 				"noExplicitAny": "off",
 				"noDebugger": "off",
 				"noConsoleLog": "off",
-				"noConfusingVoidType": "off"
+				"noConfusingVoidType": "off",
+				"noAssignInExpressions": "off"
 			},
 			"style": {
 				"noNonNullAssertion": "off"

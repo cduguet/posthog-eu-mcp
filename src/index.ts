@@ -11,12 +11,15 @@ import {
 	getOrganizations,
 	getProjects,
 	getPropertyDefinitions,
+	getSqlInsight,
 	listErrors,
 	updateFeatureFlag,
 } from "./posthogApi";
+
 import { FilterGroupsSchema, UpdateFeatureFlagInputSchema } from "./schema/flags";
 
 import { docsSearch } from "./inkeepApi";
+import { extractDataFromSSEStream } from "./lib/utils/streaming";
 import { hash } from "./lib/utils/helper-functions";
 import { MemoryCache } from "./lib/utils/cache/MemoryCache";
 import { ListErrorsSchema } from "./schema/errors";
@@ -70,7 +73,11 @@ export class MyMCP extends McpAgent<Env> {
 	async init() {
 		this.server.tool(
 			"feature-flag-get-definition",
-			"Use this tool to get the definition of a feature flag. You can provide either the flagId or the flagName. If you provide both, the flagId will be used.",
+			`
+				- Use this tool to get the definition of a feature flag. 
+				- You can provide either the flagId or the flagName. 
+				- If you provide both, the flagId will be used.
+			`,
 			{
 				flagId: z.string().optional(),
 				flagName: z.string().optional(),
@@ -145,7 +152,10 @@ export class MyMCP extends McpAgent<Env> {
 
 		this.server.tool(
 			"docs-search",
-			"Use this tool to search the PostHog documentation for information that can help the user with their request. Use it as a fallback when you cannot answer the user's request using other tools in this MCP.",
+			`
+				- Use this tool to search the PostHog documentation for information that can help the user with their request. 
+				- Use it as a fallback when you cannot answer the user's request using other tools in this MCP.
+			`,
 			{
 				query: z.string(),
 			},
@@ -224,7 +234,10 @@ export class MyMCP extends McpAgent<Env> {
 
 		this.server.tool(
 			"projects-get",
-			"Fetches projects that the user has access to - the orgId is optional. Use this tool before you use any other tools (besides organization-* and docs-search) to allow user to select the project they want to use for subsequent requests.",
+			`
+				- Fetches projects that the user has access to - the orgId is optional. 
+				- Use this tool before you use any other tools (besides organization-* and docs-search) to allow user to select the project they want to use for subsequent requests.
+			`,
 			{},
 			async () => {
 				try {
@@ -336,6 +349,63 @@ export class MyMCP extends McpAgent<Env> {
 				});
 
 				return { content: [{ type: "text", text: JSON.stringify(featureFlag) }] };
+			},
+		);
+
+		this.server.tool(
+			"get-sql-insight",
+			`
+				- Queries project's PostHog data warehouse based on a provided natural language question - don't provide SQL query as input but describe the output you want.
+				- Data warehouse schema includes data like events and persons.
+				- Use this tool to get a quick answer to a question about the data in the project, which can't be answered using other, more dedicated tools.
+				- Fetches the result as a Server-Sent Events (SSE) stream and provides the concatenated data content.
+				- When giving the results back to the user, first show the SQL query that was used, then briefly explain the query, then provide results in reasily readable format.
+			`,
+			{
+				projectId: z.string().describe("The ID of the project."),
+				query: z
+					.string()
+					.max(1000)
+					.describe(
+						"Your natural language query describing the SQL insight (max 1000 characters).",
+					),
+			},
+			async ({ projectId, query }) => {
+				const apiToken = this.env.POSTHOG_API_TOKEN;
+				if (!apiToken) {
+					return {
+						content: [
+							{ type: "text", text: "Error: POSTHOG_API_TOKEN is not configured." },
+						],
+					};
+				}
+
+				try {
+					const sseStream = await getSqlInsight({ projectId, apiToken, query });
+					const extractedData = await extractDataFromSSEStream(sseStream);
+					console.log("extractedData", extractedData);
+					if (extractedData.length === 0) {
+						return {
+							content: [
+								{
+									type: "text",
+									text: "Received an empty SQL insight or no data in the stream.",
+								},
+							],
+						};
+					}
+					return { content: [{ type: "text", text: extractedData }] };
+				} catch (error: any) {
+					console.error("Error in get-sql-insight tool:", error);
+					return {
+						content: [
+							{
+								type: "text",
+								text: `Error: ${error.message || "Failed to generate SQL insight"}`,
+							},
+						],
+					};
+				}
 			},
 		);
 	}
