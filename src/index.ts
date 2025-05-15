@@ -6,6 +6,8 @@ import { createFeatureFlag, deleteFeatureFlag, getFeatureFlagDefinition, getFeat
 import { FilterGroupsSchema, UpdateFeatureFlagInputSchema } from "./schema/flags";
 
 import { docsSearch } from "./inkeepApi";
+import { hash } from "./lib/utils/helper-functions";
+import { MemoryCache } from "./lib/utils/cache/MemoryCache";
 
 
 const INSTRUCTIONS = `
@@ -17,6 +19,9 @@ const INSTRUCTIONS = `
 - If you cannot answer the user's PostHog related request or question using other available tools in this MCP, use the 'docs-search' tool to provide information from the documentation to guide user how they can do it themselves - when doing so provide condensed instructions with links to sources.
 `
 
+type State = {
+	projectId: string | undefined;
+}
 // Define our MCP agent with tools
 export class MyMCP extends McpAgent<Env> {
 	server = new McpServer({
@@ -25,16 +30,45 @@ export class MyMCP extends McpAgent<Env> {
 		instructions: INSTRUCTIONS,
 	});
 
+	initialState: State = {
+		projectId: undefined,
+	};
+
+	cache = new MemoryCache<State>(this.env.USER_HASH);
+
+	async getProjectId() {
+
+		const projectId = await this.cache.get("projectId");
+
+		if (!projectId) {
+
+			const projects = await getProjects(undefined, this.env.POSTHOG_API_TOKEN);
+
+			// If there is only one project, set it as the active project
+			if (projects.length === 1) {
+				await this.cache.set("projectId", projects[0].id);
+				return projects[0].id;
+			}
+
+			throw new Error("Instructions to agent: You must set an active project using the `project-set-active` tool before using any other tools. If you are unsure which project to use, use the `projects-get` tool to see all available projects.");
+		}
+
+		return projectId;
+	}
+
 	async init() {
+
 		this.server.tool(
 			"feature-flag-get-definition",
 			"Use this tool to get the definition of a feature flag. You can provide either the flagId or the flagName. If you provide both, the flagId will be used.",
 			{
-				projectId: z.string(),
 				flagId: z.string().optional(),
 				flagName: z.string().optional(),
 			},
-			async ({ projectId, flagId, flagName }) => {
+			async ({ flagId, flagName }) => {
+
+				const projectId = await this.getProjectId();
+
 				const posthogToken = this.env.POSTHOG_API_TOKEN;
 
 				if (!flagId && !flagName) {
@@ -66,6 +100,7 @@ export class MyMCP extends McpAgent<Env> {
 				}
 			}
 		);
+
 		this.server.tool(
 			"docs-search",
 			"Use this tool to search the PostHog documentation for information that can help the user with their request. Use it as a fallback when you cannot answer the user's request using other tools in this MCP.",
@@ -103,11 +138,25 @@ export class MyMCP extends McpAgent<Env> {
 		);
 
 		this.server.tool(
+			"project-set-active",
+			{
+				projectId: z.string(),
+			},
+			async ({ projectId }) => {
+
+				await this.cache.set("projectId", projectId);
+
+				return { content: [{ type: "text", text: `Switched to project ${projectId}` }] };
+			}
+		)
+
+		this.server.tool(
 			"organization-details-get",
 			{
 				orgId: z.string().optional(),
 			},
 			async ({ orgId }) => {
+
 				try {
 					const organizationDetails = await getOrganizationDetails(orgId, this.env.POSTHOG_API_TOKEN);
 					console.log("organization details", organizationDetails);
@@ -139,10 +188,11 @@ export class MyMCP extends McpAgent<Env> {
 
 		this.server.tool(
 			"property-definitions",
-			{
-				projectId: z.string(),
-			},
-			async ({ projectId }) => {
+			{},
+			async () => {
+
+				const projectId = await this.getProjectId();
+
 				const propertyDefinitions = await getPropertyDefinitions({ projectId: projectId, apiToken: this.env.POSTHOG_API_TOKEN });
 				return { content: [{ type: "text", text: JSON.stringify(propertyDefinitions) }] };
 			}
@@ -156,9 +206,10 @@ export class MyMCP extends McpAgent<Env> {
 				description: z.string(),
 				filters: FilterGroupsSchema,
 				active: z.boolean(),
-				projectId: z.string(),
 			},
-			async ({ name, key, description, filters, active, projectId }) => {
+			async ({ name, key, description, filters, active }) => {
+
+				const projectId = await this.getProjectId();
 
 				const featureFlag = await createFeatureFlag({ projectId: projectId, apiToken: this.env.POSTHOG_API_TOKEN, data: { name, key, description, filters, active } });
 				return { content: [{ type: "text", text: JSON.stringify(featureFlag) }] };
@@ -187,11 +238,13 @@ export class MyMCP extends McpAgent<Env> {
 		this.server.tool(
 			"update-feature-flag",
 			{
-				projectId: z.string(),
 				flagKey: z.string(),
 				data: UpdateFeatureFlagInputSchema,
 			},
-			async ({ projectId, flagKey, data }) => {
+			async ({ flagKey, data }) => {
+
+				const projectId = await this.getProjectId();
+
 				const featureFlag = await updateFeatureFlag({ projectId: projectId, apiToken: this.env.POSTHOG_API_TOKEN, key: flagKey, data: data });
 				return { content: [{ type: "text", text: JSON.stringify(featureFlag) }] };
 			}
@@ -200,14 +253,15 @@ export class MyMCP extends McpAgent<Env> {
 		this.server.tool(
 			"delete-feature-flag",
 			{
-				projectId: z.string(),
-				key: z.string(),
+				flagKey: z.string(),
 			},
-			async ({ projectId, key }) => {
+			async ({ flagKey }) => {
+
+				const projectId = await this.getProjectId();
 
 				const allFlags = await getFeatureFlags(projectId, this.env.POSTHOG_API_TOKEN);
 
-				const flag = allFlags.find(f => f.key === key);
+				const flag = allFlags.find(f => f.key === flagKey);
 
 				if (!flag) {
 					return {
@@ -224,7 +278,8 @@ export class MyMCP extends McpAgent<Env> {
 }
 
 export default {
-	fetch(request: Request, env: Env, ctx: ExecutionContext) {
+	async fetch(request: Request, env: Env, ctx: ExecutionContext) {
+
 		const url = new URL(request.url);
 		const token = url.searchParams.get("token");
 
@@ -232,7 +287,10 @@ export default {
 			return new Response("Unauthorized", { status: 401 });
 		}
 
+		const userHash = hash(token);
+
 		env["POSTHOG_API_TOKEN"] = token;
+		env["USER_HASH"] = userHash;
 
 		if (url.pathname === "/sse" || url.pathname === "/sse/message") {
 			// @ts-ignore
