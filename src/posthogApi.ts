@@ -109,6 +109,34 @@ export async function createFeatureFlag({ projectId, apiToken, data }: { project
 	return responseData;
 }
 
+export async function updateFeatureFlag({ projectId, apiToken, key, data }: { projectId: string, apiToken: string, key: string, data: Creat }) {
+
+	const allFlags = await getFeatureFlags(projectId, apiToken);
+	const flag = allFlags.find(f => f.key === key);
+
+	if (!flag) {
+		throw new Error(`Feature flag not found: ${key}`);
+	}
+
+	const body = { "key": data.key, "name": data.name, "description": data.description, "active": data.active, "filters": data.filters }
+
+	const response = await fetch(`https://us.posthog.com/api/projects/${projectId}/feature_flags/${flag.id}/`, {
+		method: "PATCH",
+		headers: {
+			Authorization: `Bearer ${apiToken}`,
+			"Content-Type": "application/json"
+		},
+		body: JSON.stringify(body)
+	});
+
+	if (!response.ok) {
+		throw new Error(`Failed to update feature flag: ${response.statusText}`);
+	}
+
+	const responseData = await response.json();
+
+	return responseData;
+}
 
 export async function deleteFeatureFlag({ projectId, apiToken, flagId }: { projectId: string, apiToken: string, flagId: number }) {
 	const response = await fetch(`https://us.posthog.com/api/projects/${projectId}/feature_flags/${flagId}/`, {
