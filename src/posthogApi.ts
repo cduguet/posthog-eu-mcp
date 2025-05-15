@@ -198,47 +198,6 @@ export async function deleteFeatureFlag({ projectId, apiToken, flagId }: { proje
 	}
 }
 
-export interface HogQLQueryResponse {
-	hogql_query: string;
-	raw_query: string;
-}
-
-export async function getHogQLQuery({
-	projectId,
-	apiToken,
-	instructions,
-	current_query
-}: {
-	projectId: string;
-	apiToken: string;
-	instructions: string;
-	current_query: string;
-}): Promise<HogQLQueryResponse> {
-	const body = {
-		instructions: instructions,
-		current_query: current_query
-	};
-
-	// The cURL uses http://localhost:8010, assuming this might change for a deployed version
-	// Using a placeholder for the base URL, adjust if necessary, or make it configurable.
-	// For now, sticking to the localhost as per the cURL for local dev testing.
-	const response = await fetch(`http://localhost:8010/api/projects/${projectId}/hogql_generator/generate/`, {
-		method: "POST",
-		headers: {
-			Authorization: `Bearer ${apiToken}`,
-			"Content-Type": "application/json"
-		},
-		body: JSON.stringify(body)
-	});
-
-	if (!response.ok) {
-		const errorText = await response.text();
-		throw new Error(`Failed to generate HogQL query: ${response.statusText}. Details: ${errorText}`);
-	}
-
-	return response.json() as Promise<HogQLQueryResponse>;
-}
-
 export async function getSqlInsight({
 	projectId,
 	apiToken,
