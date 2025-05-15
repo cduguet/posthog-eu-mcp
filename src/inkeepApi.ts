@@ -11,17 +11,15 @@ export async function docsSearch(apiKey: string, userQuery: string): Promise<str
 		throw new Error("No API key provided");
 	}
 
-	const response = await fetch('https://api.inkeep.com/v1/chat/completions', {
-		method: 'POST',
+	const response = await fetch("https://api.inkeep.com/v1/chat/completions", {
+		method: "POST",
 		headers: {
-			'Content-Type': 'application/json',
-			'Authorization': `Bearer ${apiKey}`,
+			"Content-Type": "application/json",
+			Authorization: `Bearer ${apiKey}`,
 		},
 		body: JSON.stringify({
-			model: 'inkeep-qa-expert',
-			messages: [
-				{ role: 'user', content: userQuery },
-			],
+			model: "inkeep-qa-expert",
+			messages: [{ role: "user", content: userQuery }],
 		}),
 	});
 
@@ -31,12 +29,16 @@ export async function docsSearch(apiKey: string, userQuery: string): Promise<str
 		throw new Error(`Error querying Inkeep API: ${response.status} ${errorText}`);
 	}
 
-	const data = await response.json() as InkeepResponse;
-	
-	if (data.choices && data.choices.length > 0 && data.choices[0].message && data.choices[0].message.content) {
+	const data = (await response.json()) as InkeepResponse;
+
+	if (
+		data.choices &&
+		data.choices.length > 0 &&
+		data.choices[0].message &&
+		data.choices[0].message.content
+	) {
 		return data.choices[0].message.content;
-	} else {
-		console.error("Inkeep API response format unexpected:", data);
-		throw new Error("Unexpected response format from Inkeep API.");
 	}
-} 
+	console.error("Inkeep API response format unexpected:", data);
+	throw new Error("Unexpected response format from Inkeep API.");
+}

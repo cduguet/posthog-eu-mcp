@@ -1,14 +1,17 @@
 import { z } from "zod";
 
-export const ListErrorsKindInputSchema = z.object({
-    query: z.string(),
-    kind: z.string(),
-    status: z.string(),
-    orderBy: z.string(),
-  });
+export enum OrderByErrors {
+	Occurrences = "occurrences",
+	FirstSeen = "first_seen",
+	LastSeen = "last_seen",
+	Users = "users",
+	Sessions = "sessions",
+}
 
-export const ListErrorsInputSchema = z.object({
-  query: ListErrorsKindInputSchema,
+export const ListErrorsSchema = z.object({
+	orderBy: z.nativeEnum(OrderByErrors).optional(),
+	dateFrom: z.date().optional(),
+	dateTo: z.date().optional(),
 });
 
-export type ListErrorsInput = z.infer<typeof ListErrorsInputSchema>;
+export type ListErrorsData = z.infer<typeof ListErrorsSchema>;
