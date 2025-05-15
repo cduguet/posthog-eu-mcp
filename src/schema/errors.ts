@@ -26,9 +26,17 @@ export const ListErrorsSchema = z.object({
 	dateTo: z.date().optional(),
 	orderDirection: z.nativeEnum(OrderDirectionErrors).optional(),
 	filterTestAccounts: z.boolean().optional(),
-	limit: z.number().optional(),
+	// limit: z.number().optional(),
 	status: z.nativeEnum(StatusErrors).optional(),
 	// TODO: assigned to
 });
 
+export const ErrorDetailsSchema = z.object({
+	issueId: z.string(),
+	dateFrom: z.date().optional(),
+	dateTo: z.date().optional(),
+});
+
 export type ListErrorsData = z.infer<typeof ListErrorsSchema>;
+
+export type ErrorDetailsData = z.infer<typeof ErrorDetailsSchema>;

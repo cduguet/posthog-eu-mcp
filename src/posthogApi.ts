@@ -5,6 +5,7 @@ import type { PostHogFlagsResponse, UpdateFeatureFlagInput } from "./schema/flag
 import { PropertyDefinitionSchema } from "./schema/properties";
 import type { Project } from "./schema/projects";
 import {
+	type ErrorDetailsData,
 	type ListErrorsData,
 	ListErrorsSchema,
 	OrderByErrors,
@@ -163,7 +164,7 @@ export async function listErrors({
 	const orderByToUse = data.orderBy ?? OrderByErrors.Occurrences;
 	const orderDirectionToUse = data.orderDirection ?? OrderDirectionErrors.Descending;
 	const filterTestAccountsToUse = data.filterTestAccounts ?? true;
-	const limitToUse = data.limit ?? 50;
+	// const limitToUse = data.limit ?? 50;
 	const statusToUse = data.status ?? StatusErrors.Active;
 	const body = {
 		query: {
@@ -173,10 +174,10 @@ export async function listErrors({
 				date_from: dateFromToUse,
 				date_to: dateToToUse,
 			},
-			volumeResolution: 20,
+			volumeResolution: 1, // we dont care about sparkline volumes yet mandatory
 			orderDirection: orderDirectionToUse,
 			filterTestAccounts: filterTestAccountsToUse,
-			limit: limitToUse,
+			// limit: limitToUse,
 			status: statusToUse,
 		},
 	};
@@ -193,6 +194,46 @@ export async function listErrors({
 
 	if (!response.ok) {
 		throw new Error(`Failed to fetch errors: ${response.statusText}`);
+	}
+	const responseData = await response.json();
+
+	return responseData;
+}
+
+export async function errorDetails({
+	projectId,
+	data,
+	apiToken,
+}: { projectId: string; data: ErrorDetailsData; apiToken: string | undefined }) {
+	console.log("error details for project", projectId, data);
+	const date = new Date();
+	date.setDate(date.getDate() - 7);
+	const dateFromToUse = data.dateFrom?.toISOString() ?? date.toISOString();
+	const dateToToUse = data.dateTo?.toISOString() ?? new Date().toISOString();
+	const body = {
+		query: {
+			kind: "ErrorTrackingQuery",
+			dateRange: {
+				date_from: dateFromToUse,
+				date_to: dateToToUse,
+			},
+			volumeResolution: 0, // we dont care about sparkline volumes yet mandatory
+			issueId: data.issueId,
+		},
+	};
+	console.log("data", body);
+
+	const response = await fetch(`https://us.posthog.com/api/environments/${projectId}/query/`, {
+		method: "POST",
+		headers: {
+			Authorization: `Bearer ${apiToken}`,
+			"Content-Type": "application/json",
+		},
+		body: JSON.stringify(body),
+	});
+
+	if (!response.ok) {
+		throw new Error(`Failed to fetch error details: ${response.statusText}`);
 	}
 	const responseData = await response.json();
 
