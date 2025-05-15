@@ -1,8 +1,9 @@
 import { ApiPropertyDefinitionSchema } from "./schema/api";
 import { withPagination } from "./lib/utils/api";
 import { type CreateFeatureFlagInput, type FeatureFlag, type PostHogFeatureFlag } from "./schema/flags";
-import type { PostHogFlagsResponse } from "./schema/flags";
+import type { PostHogFlagsResponse, UpdateFeatureFlagInput } from "./schema/flags";
 import { PropertyDefinitionSchema } from "./schema/properties";
+import type { Project } from "./schema/projects";
 
 export async function getFeatureFlagDefinition(projectId: string, flagId: string, apiToken: string) {
 	const response = await fetch(`https://us.posthog.com/api/projects/${projectId}/feature_flags/${flagId}/`, {
@@ -55,7 +56,7 @@ export async function getOrganizationDetails(orgId: string | undefined, apiToken
 	return response.json();
 }
 
-export async function getProjects(orgId: string | undefined, apiToken: string) {
+export async function getProjects(orgId: string | undefined, apiToken: string): Promise<Project[]> {
 	const orgIdToUse = orgId ?? '@current'
 	console.log("loading projects", orgIdToUse)
 	const response = await fetch(`https://us.posthog.com/api/organizations/${orgIdToUse}/projects/`, {
@@ -109,7 +110,7 @@ export async function createFeatureFlag({ projectId, apiToken, data }: { project
 	return responseData;
 }
 
-export async function updateFeatureFlag({ projectId, apiToken, key, data }: { projectId: string, apiToken: string, key: string, data: Creat }) {
+export async function updateFeatureFlag({ projectId, apiToken, key, data }: { projectId: string, apiToken: string, key: string, data: UpdateFeatureFlagInput }) {
 
 	const allFlags = await getFeatureFlags(projectId, apiToken);
 	const flag = allFlags.find(f => f.key === key);
@@ -118,7 +119,7 @@ export async function updateFeatureFlag({ projectId, apiToken, key, data }: { pr
 		throw new Error(`Feature flag not found: ${key}`);
 	}
 
-	const body = { "key": data.key, "name": data.name, "description": data.description, "active": data.active, "filters": data.filters }
+	const body = { "key": key, "name": data.name, "description": data.description, "active": data.active, "filters": data.filters }
 
 	const response = await fetch(`https://us.posthog.com/api/projects/${projectId}/feature_flags/${flag.id}/`, {
 		method: "PATCH",
