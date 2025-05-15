@@ -157,7 +157,7 @@ export async function updateFeatureFlag({ projectId, apiToken, key, data }: { pr
 		throw new Error(`Feature flag not found: ${key}`);
 	}
 
-	const body = { "key": data.key, "name": data.name, "description": data.description, "active": data.active, "filters": data.filters }
+	const body = { "key": key, "name": data.name, "description": data.description, "active": data.active, "filters": data.filters };
 
 	const response = await fetch(`https://us.posthog.com/api/projects/${projectId}/feature_flags/${flag.id}/`, {
 		method: "PATCH",
@@ -195,4 +195,80 @@ export async function deleteFeatureFlag({ projectId, apiToken, flagId }: { proje
 		success: true,
 		message: "Feature flag deleted successfully"
 	}
+}
+
+export interface HogQLQueryResponse {
+	hogql_query: string;
+	raw_query: string;
+}
+
+export async function getHogQLQuery({
+	projectId,
+	apiToken,
+	instructions,
+	current_query
+}: {
+	projectId: string;
+	apiToken: string;
+	instructions: string;
+	current_query: string;
+}): Promise<HogQLQueryResponse> {
+	const body = {
+		instructions: instructions,
+		current_query: current_query
+	};
+
+	// The cURL uses http://localhost:8010, assuming this might change for a deployed version
+	// Using a placeholder for the base URL, adjust if necessary, or make it configurable.
+	// For now, sticking to the localhost as per the cURL for local dev testing.
+	const response = await fetch(`http://localhost:8010/api/projects/${projectId}/hogql_generator/generate/`, {
+		method: "POST",
+		headers: {
+			Authorization: `Bearer ${apiToken}`,
+			"Content-Type": "application/json"
+		},
+		body: JSON.stringify(body)
+	});
+
+	if (!response.ok) {
+		const errorText = await response.text();
+		throw new Error(`Failed to generate HogQL query: ${response.statusText}. Details: ${errorText}`);
+	}
+
+	return response.json() as Promise<HogQLQueryResponse>;
+}
+
+export async function getSqlInsight({
+	projectId,
+	apiToken,
+	query
+}: {
+	projectId: string;
+	apiToken: string;
+	query: string;
+}): Promise<ReadableStream<Uint8Array>> {
+	const requestBody = {
+		query: query,
+		insight_type: "sql"
+	};
+
+	const response = await fetch(`https://us.posthog.com/api/environments/${projectId}/max_tools/create_and_query_insight/`, {
+		method: "POST",
+		headers: {
+			Authorization: `Bearer ${apiToken}`,
+			"Content-Type": "application/json"
+		},
+		body: JSON.stringify(requestBody)
+	});
+
+	if (!response.ok) {
+		const errorText = await response.text();
+		throw new Error(`Failed to create and query SQL insight: ${response.statusText}. Details: ${errorText}`);
+	}
+
+	if (!response.body) {
+        throw new Error('Response body is null, but an SSE stream was expected.');
+    }
+
+	return response.body;
 }
