@@ -33,6 +33,7 @@ const INSTRUCTIONS = `
 
 type State = {
 	projectId: string | undefined;
+	orgId: string | undefined;
 };
 // Define our MCP agent with tools
 export class MyMCP extends McpAgent<Env> {
@@ -44,15 +45,35 @@ export class MyMCP extends McpAgent<Env> {
 
 	initialState: State = {
 		projectId: undefined,
+		orgId: undefined,
 	};
 
 	cache = new MemoryCache<State>(this.env.USER_HASH);
+
+	async getOrgID() {
+		const orgId = await this.cache.get("orgId");
+
+		if (!orgId) {
+			const orgs = await getOrganizations(this.env.POSTHOG_API_TOKEN);
+
+			// If there is only one org, set it as the active org
+			if (orgs.length === 1) {
+				await this.cache.set("orgId", orgs[0].id);
+				return orgs[0].id;
+			}
+
+			return "@current";
+		}
+
+		return orgId;
+	}
 
 	async getProjectId() {
 		const projectId = await this.cache.get("projectId");
 
 		if (!projectId) {
-			const projects = await getProjects(undefined, this.env.POSTHOG_API_TOKEN);
+			const orgId = await this.getOrgID();
+			const projects = await getProjects(orgId, this.env.POSTHOG_API_TOKEN);
 
 			// If there is only one project, set it as the active project
 			if (projects.length === 1) {
@@ -60,9 +81,7 @@ export class MyMCP extends McpAgent<Env> {
 				return projects[0].id;
 			}
 
-			throw new Error(
-				"Instructions to agent: You must set an active project using the `project-set-active` tool before using any other tools. If you are unsure which project to use, use the `projects-get` tool to see all available projects.",
-			);
+			return "@current";
 		}
 
 		return projectId;
@@ -81,8 +100,6 @@ export class MyMCP extends McpAgent<Env> {
 				flagName: z.string().optional(),
 			},
 			async ({ flagId, flagName }) => {
-				const projectId = await this.getProjectId();
-
 				const posthogToken = this.env.POSTHOG_API_TOKEN;
 
 				if (!flagId && !flagName) {
@@ -99,6 +116,7 @@ export class MyMCP extends McpAgent<Env> {
 				try {
 					let flagDefinition: any;
 
+					const projectId = await this.getProjectId();
 					if (flagId) {
 						flagDefinition = await getFeatureFlagDefinition(
 							projectId,
@@ -222,28 +240,36 @@ export class MyMCP extends McpAgent<Env> {
 		);
 
 		this.server.tool(
-			"organization-details-get",
+			"organization-set-active",
 			{
-				orgId: z.string().optional(),
+				orgId: z.string(),
 			},
 			async ({ orgId }) => {
-				try {
-					const organizationDetails = await getOrganizationDetails(
-						orgId,
-						this.env.POSTHOG_API_TOKEN,
-					);
-					console.log("organization details", organizationDetails);
-					return {
-						content: [{ type: "text", text: JSON.stringify(organizationDetails) }],
-					};
-				} catch (error) {
-					console.error("Error fetching organization details:", error);
-					return {
-						content: [{ type: "text", text: "Error fetching organization details" }],
-					};
-				}
+				await this.cache.set("orgId", orgId);
+
+				return { content: [{ type: "text", text: `Switched to organization ${orgId}` }] };
 			},
 		);
+
+		this.server.tool("organization-details-get", {}, async () => {
+			try {
+				const orgId = await this.getOrgID();
+
+				const organizationDetails = await getOrganizationDetails(
+					orgId,
+					this.env.POSTHOG_API_TOKEN,
+				);
+				console.log("organization details", organizationDetails);
+				return {
+					content: [{ type: "text", text: JSON.stringify(organizationDetails) }],
+				};
+			} catch (error) {
+				console.error("Error fetching organization details:", error);
+				return {
+					content: [{ type: "text", text: "Error fetching organization details" }],
+				};
+			}
+		});
 
 		this.server.tool(
 			"projects-get",
@@ -254,7 +280,8 @@ export class MyMCP extends McpAgent<Env> {
 			{},
 			async () => {
 				try {
-					const projects = await getProjects(undefined, this.env.POSTHOG_API_TOKEN);
+					const orgId = await this.getOrgID();
+					const projects = await getProjects(orgId, this.env.POSTHOG_API_TOKEN);
 					console.log("projects", projects);
 					return { content: [{ type: "text", text: JSON.stringify(projects) }] };
 				} catch (error) {
@@ -303,11 +330,12 @@ export class MyMCP extends McpAgent<Env> {
 		this.server.tool(
 			"list-errors",
 			{
-				projectId: z.string(),
 				data: ListErrorsSchema,
 			},
-			async ({ projectId, data }) => {
+			async ({ data }) => {
 				try {
+					const projectId = await this.getProjectId();
+
 					const errors = await listErrors({
 						projectId: projectId,
 						data: data,
@@ -326,11 +354,12 @@ export class MyMCP extends McpAgent<Env> {
 		this.server.tool(
 			"error-details",
 			{
-				projectId: z.string(),
 				data: ErrorDetailsSchema,
 			},
-			async ({ projectId, data }) => {
+			async ({ data }) => {
 				try {
+					const projectId = await this.getProjectId();
+
 					const errors = await errorDetails({
 						projectId: projectId,
 						data: data,
@@ -407,7 +436,6 @@ export class MyMCP extends McpAgent<Env> {
 				- When giving the results back to the user, first show the SQL query that was used, then briefly explain the query, then provide results in reasily readable format.
 			`,
 			{
-				projectId: z.string().describe("The ID of the project."),
 				query: z
 					.string()
 					.max(1000)
@@ -415,7 +443,7 @@ export class MyMCP extends McpAgent<Env> {
 						"Your natural language query describing the SQL insight (max 1000 characters).",
 					),
 			},
-			async ({ projectId, query }) => {
+			async ({ query }) => {
 				const apiToken = this.env.POSTHOG_API_TOKEN;
 				if (!apiToken) {
 					return {
@@ -426,6 +454,8 @@ export class MyMCP extends McpAgent<Env> {
 				}
 
 				try {
+					const projectId = await this.getProjectId();
+
 					const sseStream = await getSqlInsight({ projectId, apiToken, query });
 					const extractedData = await extractDataFromSSEStream(sseStream);
 					console.log("extractedData", extractedData);
@@ -465,7 +495,6 @@ export class MyMCP extends McpAgent<Env> {
 		// 		`
 		// 	})
 	}
-
 }
 
 export default {
