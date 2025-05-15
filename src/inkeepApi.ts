@@ -18,7 +18,7 @@ export async function docsSearch(apiKey: string, userQuery: string): Promise<str
 			Authorization: `Bearer ${apiKey}`,
 		},
 		body: JSON.stringify({
-			model: "inkeep-qa-expert",
+			model: "inkeep-rag",
 			messages: [{ role: "user", content: userQuery }],
 		}),
 	});
