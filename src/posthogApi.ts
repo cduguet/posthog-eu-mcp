@@ -50,7 +50,7 @@ export async function getFeatureFlags(
 	return data.results || [];
 }
 
-export async function getOrganizations(apiToken: string) {
+export async function getOrganizations(apiToken: string): Promise<any> {
 	console.log("loading organizations");
 	const response = await fetch("https://us.posthog.com/api/organizations/", {
 		headers: {
@@ -63,10 +63,9 @@ export async function getOrganizations(apiToken: string) {
 	return response.json();
 }
 
-export async function getOrganizationDetails(orgId: string | undefined, apiToken: string) {
-	const orgIdToUse = orgId ?? "@current";
-	console.log("loading organization details", orgIdToUse);
-	const response = await fetch(`https://us.posthog.com/api/organizations/${orgIdToUse}/`, {
+export async function getOrganizationDetails(orgId: string, apiToken: string) {
+	console.log("loading organization details", orgId);
+	const response = await fetch(`https://us.posthog.com/api/organizations/${orgId}/`, {
 		headers: {
 			Authorization: `Bearer ${apiToken}`,
 		},
@@ -77,17 +76,13 @@ export async function getOrganizationDetails(orgId: string | undefined, apiToken
 	return response.json();
 }
 
-export async function getProjects(orgId: string | undefined, apiToken: string): Promise<Project[]> {
-	const orgIdToUse = orgId ?? "@current";
-	console.log("loading projects", orgIdToUse);
-	const response = await fetch(
-		`https://us.posthog.com/api/organizations/${orgIdToUse}/projects/`,
-		{
-			headers: {
-				Authorization: `Bearer ${apiToken}`,
-			},
+export async function getProjects(orgId: string, apiToken: string): Promise<Project[]> {
+	console.log("loading projects", orgId);
+	const response = await fetch(`https://us.posthog.com/api/organizations/${orgId}/projects/`, {
+		headers: {
+			Authorization: `Bearer ${apiToken}`,
 		},
-	);
+	});
 	if (!response.ok) {
 		throw new Error(`Failed to fetch projects: ${response.statusText}`);
 	}
