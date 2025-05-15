@@ -1,7 +1,7 @@
 import { ApiPropertyDefinitionSchema } from "./schema/api";
 import { withPagination } from "./lib/utils/api";
 import { type CreateFeatureFlagInput, type FeatureFlag, type PostHogFeatureFlag } from "./schema/flags";
-import type { PostHogFlagsResponse, UpdateFeatureFlagInputSchema } from "./schema/flags";
+import type { PostHogFlagsResponse, UpdateFeatureFlagInput } from "./schema/flags";
 import { PropertyDefinitionSchema } from "./schema/properties";
 
 export async function getFeatureFlagDefinition(projectId: string, flagId: string, apiToken: string) {
@@ -148,7 +148,7 @@ export async function listErrors({ projectId, apiToken }: { projectId: string, a
 	return responseData;
 }
 
-export async function updateFeatureFlag({ projectId, apiToken, key, data }: { projectId: string, apiToken: string, key: string, data: UpdateFeatureFlagInputSchema }) {
+export async function updateFeatureFlag({ projectId, apiToken, key, data }: { projectId: string, apiToken: string, key: string, data: UpdateFeatureFlagInput }) {
 
 	const allFlags = await getFeatureFlags(projectId, apiToken);
 	const flag = allFlags.find(f => f.key === key);
