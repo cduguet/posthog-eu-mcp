@@ -80,6 +80,10 @@ export const CreateFeatureFlagInputSchema = z.object({
 
 export type CreateFeatureFlagInput = z.infer<typeof CreateFeatureFlagInputSchema>;
 
+export const UpdateFeatureFlagInputSchema = CreateFeatureFlagInputSchema.omit({ key: true }).partial();
+
+export type UpdateFeatureFlagInput = z.infer<typeof UpdateFeatureFlagInputSchema>;
+
 export const FeatureFlagSchema = z.object({
   id: z.number(),
   key: z.string(),

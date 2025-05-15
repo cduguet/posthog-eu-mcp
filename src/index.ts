@@ -1,14 +1,14 @@
 import { McpAgent } from "agents/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { createFeatureFlag, deleteFeatureFlag, getFeatureFlagDefinition, getFeatureFlags, getOrganizationDetails, getOrganizations, getProjects, getPropertyDefinitions } from "./posthogApi";
-import { FilterGroupsSchema } from "./schema/flags";
+import { createFeatureFlag, deleteFeatureFlag, getFeatureFlagDefinition, getFeatureFlags, getOrganizationDetails, getOrganizations, getProjects, getPropertyDefinitions, updateFeatureFlag } from "./posthogApi";
+import { FilterGroupsSchema, UpdateFeatureFlagInputSchema } from "./schema/flags";
 import { docsSearch } from "./inkeepApi";
 
 
 const INSTRUCTIONS = `
 - You are a helpful assistant that can query PostHog API.
-- Before using any of the tools, clarify which project the user wants to query - use the 'projects-get' tool - it doesn't require the orgId arg.
+- Before using any of the tools, clarify which project the user wants to query - use the 'projects-get' tool.
 - Then return the full list of project names and IDs and ask the user to select one. 
 - Keep this project ID in scope unless the user asks to change.
 - If some resource from another tool is not found, ask the user if they want to try finding it in another project.
@@ -121,11 +121,10 @@ export class MyMCP extends McpAgent<Env> {
 			"projects-get",
 			"Fetches projects that the user has access to - the orgId is optional. Use this tool before you use any other tools (besides organization-* and docs-search) to allow user to select the project they want to use for subsequent requests.",
 			{
-				orgId: z.string().optional(),
 			},
-			async ({ orgId }) => {
+			async () => {
 				try {
-					const projects = await getProjects(orgId, this.env.POSTHOG_API_TOKEN);
+					const projects = await getProjects(undefined, this.env.POSTHOG_API_TOKEN);
 					console.log("projects", projects);
 					return { content: [{ type: "text", text: JSON.stringify(projects) }] };
 				} catch (error) {
@@ -164,6 +163,18 @@ export class MyMCP extends McpAgent<Env> {
 			}
 		);
 
+		this.server.tool(
+			"update-feature-flag",
+			{
+				projectId: z.string(),
+				flagKey: z.string(),
+				data: UpdateFeatureFlagInputSchema,
+			},
+			async ({ projectId, flagKey, data }) => {
+				const featureFlag = await updateFeatureFlag({ projectId: projectId, apiToken: this.env.POSTHOG_API_TOKEN, key: flagKey, data: data });
+				return { content: [{ type: "text", text: JSON.stringify(featureFlag) }] };
+			}
+		);
 
 		this.server.tool(
 			"delete-feature-flag",
