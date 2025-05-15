@@ -10,7 +10,8 @@ INKEEP_API_KEY="..."
 
 ## PostHog API Key
 
-Obtain a [personal API key](https://posthog.com/docs/api#how-to-obtain-a-personal-api-key) on PostHog with appropriate permissions (project or organization scoped, at least read access, though some tools require write access).
+- Obtain a [personal API key](https://posthog.com/docs/api#how-to-obtain-a-personal-api-key) on PostHog with appropriate permissions (project or organization scoped, at least read access, though some tools require write access)
+- Use the key in your MCP configuration JSON 
 
 ## MCP configuration for desktop clients (e.g. Cursor, Claude Desktop)
 
