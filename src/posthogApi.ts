@@ -158,7 +158,7 @@ export async function updateFeatureFlag({ projectId, apiToken, key, data }: { pr
 		throw new Error(`Feature flag not found: ${key}`);
 	}
 
-	const body = { "key": key, "name": data.name, "description": data.description, "active": data.active, "filters": data.filters }
+	const body = { "key": key, "name": data.name, "description": data.description, "active": data.active, "filters": data.filters };
 
 	const response = await fetch(`https://us.posthog.com/api/projects/${projectId}/feature_flags/${flag.id}/`, {
 		method: "PATCH",
@@ -196,4 +196,39 @@ export async function deleteFeatureFlag({ projectId, apiToken, flagId }: { proje
 		success: true,
 		message: "Feature flag deleted successfully"
 	}
+}
+
+export async function getSqlInsight({
+	projectId,
+	apiToken,
+	query
+}: {
+	projectId: string;
+	apiToken: string;
+	query: string;
+}): Promise<ReadableStream<Uint8Array>> {
+	const requestBody = {
+		query: query,
+		insight_type: "sql"
+	};
+
+	const response = await fetch(`https://us.posthog.com/api/environments/${projectId}/max_tools/create_and_query_insight/`, {
+		method: "POST",
+		headers: {
+			Authorization: `Bearer ${apiToken}`,
+			"Content-Type": "application/json"
+		},
+		body: JSON.stringify(requestBody)
+	});
+
+	if (!response.ok) {
+		const errorText = await response.text();
+		throw new Error(`Failed to create and query SQL insight: ${response.statusText}. Details: ${errorText}`);
+	}
+
+	if (!response.body) {
+        throw new Error('Response body is null, but an SSE stream was expected.');
+    }
+
+	return response.body;
 }
