@@ -1,17 +1,17 @@
 import { ApiPropertyDefinitionSchema } from "./schema/api";
 import { withPagination } from "./lib/utils/api";
-import type { CreateFeatureFlagInput, FeatureFlag, PostHogFeatureFlag } from "./schema/flags";
+import type { CreateFeatureFlagInput, PostHogFeatureFlag } from "./schema/flags";
 import type { PostHogFlagsResponse, UpdateFeatureFlagInput } from "./schema/flags";
 import { PropertyDefinitionSchema } from "./schema/properties";
 import type { Project } from "./schema/projects";
 import {
 	type ErrorDetailsData,
 	type ListErrorsData,
-	ListErrorsSchema,
 	OrderByErrors,
 	OrderDirectionErrors,
 	StatusErrors,
 } from "./schema/errors";
+import type { Organization } from "./schema/orgs";
 
 export async function getFeatureFlagDefinition(
 	projectId: string,
@@ -50,7 +50,7 @@ export async function getFeatureFlags(
 	return data.results || [];
 }
 
-export async function getOrganizations(apiToken: string): Promise<any> {
+export async function getOrganizations(apiToken: string): Promise<Organization[]> {
 	console.log("loading organizations");
 	const response = await fetch("https://us.posthog.com/api/organizations/", {
 		headers: {
