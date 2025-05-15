@@ -1,7 +1,7 @@
 import { McpAgent } from "agents/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { createFeatureFlag, getFeatureFlagDefinition, getFeatureFlags, getOrganizationDetails, getOrganizations, getProjects, getPropertyDefinitions } from "./posthogApi";
+import { createFeatureFlag, getFeatureFlagDefinition, getFeatureFlags, getOrganizationDetails, getOrganizations, getProjects, getPropertyDefinitions, listErrors } from "./posthogApi";
 import { FilterGroupsSchema } from "./schema/flags";
 import { docsSearch } from "./inkeepApi";
 
@@ -162,6 +162,25 @@ export class MyMCP extends McpAgent<Env> {
 
 				const featureFlag = await createFeatureFlag({ projectId: projectId, apiToken: this.env.POSTHOG_API_TOKEN, data: { name, key, description, filters, active } });
 				return { content: [{ type: "text", text: JSON.stringify(featureFlag) }] };
+			}
+		);
+
+		this.server.tool(
+			"list-errors",
+			{
+				projectId: z.string(),
+			},
+				async ({ projectId }) => {
+
+				try {
+					const errors = await listErrors({ projectId: projectId, apiToken: this.env.POSTHOG_API_TOKEN });
+					const results = (errors as any).results
+					console.log("errors results", results);
+					return { content: [{ type: "text", text: JSON.stringify(results) }] };
+				} catch (error) {
+					console.error("Error fetching errors:", error);
+					return { content: [{ type: "text", text: "Error fetching errors" }] };
+				}
 			}
 		);
 	}

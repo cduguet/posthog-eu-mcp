@@ -3,6 +3,7 @@ import { withPagination } from "./lib/utils/api";
 import { type CreateFeatureFlagInput, type FeatureFlag, type PostHogFeatureFlag } from "./schema/flags";
 import type { PostHogFlagsResponse } from "./schema/flags";
 import { PropertyDefinitionSchema } from "./schema/properties";
+import { ListErrorsInput } from "./schema/errors";
 
 export async function getFeatureFlagDefinition(projectId: string, flagId: string, apiToken: string) {
 	const response = await fetch(`https://us.posthog.com/api/projects/${projectId}/feature_flags/${flagId}/`, {
@@ -79,7 +80,7 @@ export async function getPropertyDefinitions({ projectId, apiToken }: { projectI
 }
 
 export async function createFeatureFlag({ projectId, apiToken, data }: { projectId: string, apiToken: string, data: CreateFeatureFlagInput }) {
-
+	console.log("creating feature flag for project", projectId, data)
 	const body = { "key": data.key, "name": data.name, "description": data.description, "active": data.active, "filters": data.filters }
 
 	const response = await fetch(`https://us.posthog.com/api/projects/${projectId}/feature_flags/`, {
@@ -104,6 +105,45 @@ export async function createFeatureFlag({ projectId, apiToken, data }: { project
 		throw new Error(`Failed to create feature flag: ${response.statusText}`);
 	}
 
+	const responseData = await response.json();
+
+	return responseData;
+}
+
+export async function listErrors({ projectId, apiToken }: { projectId: string, apiToken: string | undefined }) {
+	console.log("listing errors for project", projectId)
+	const date = new Date()
+	date.setDate(date.getDate() - 7)
+	const dateFromToUse = date.toISOString()
+	const dateToToUse = new Date().toISOString()
+	console.log("dateFromToUse", dateFromToUse)
+	console.log("dateToToUse", dateToToUse)
+	const body = {
+		"query": {
+			"kind": "ErrorTrackingQuery",
+			"orderBy": "occurrences",
+			"status": "active",
+			"dateRange": {
+				"date_from": dateFromToUse,
+				"date_to": dateToToUse
+			},
+			"volumeResolution": 20
+		}
+	}
+
+	const response = await fetch(`https://us.posthog.com/api/environments/${projectId}/query/`, {
+		method: "POST",
+		headers: {
+			Authorization: `Bearer ${apiToken}`,
+			"Content-Type": "application/json"
+		},
+		body: JSON.stringify(body)
+	});
+
+
+	if (!response.ok) {
+		throw new Error(`Failed to fetch errors: ${response.statusText}`);
+	}
 	const responseData = await response.json();
 
 	return responseData;
