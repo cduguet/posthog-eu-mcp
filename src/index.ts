@@ -2,27 +2,40 @@ import { McpAgent } from "agents/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
-import { createFeatureFlag, deleteFeatureFlag, getFeatureFlagDefinition, getFeatureFlags, getOrganizationDetails, getOrganizations, getProjects, getPropertyDefinitions, listErrors, updateFeatureFlag, getSqlInsight } from "./posthogApi";
+import {
+	createFeatureFlag,
+	deleteFeatureFlag,
+	getFeatureFlagDefinition,
+	getFeatureFlags,
+	getOrganizationDetails,
+	getOrganizations,
+	getProjects,
+	getPropertyDefinitions,
+	getSqlInsight,
+	listErrors,
+	updateFeatureFlag,
+} from "./posthogApi";
+
 import { FilterGroupsSchema, UpdateFeatureFlagInputSchema } from "./schema/flags";
 
 import { docsSearch } from "./inkeepApi";
 import { extractDataFromSSEStream } from "./lib/utils/streaming";
 import { hash } from "./lib/utils/helper-functions";
 import { MemoryCache } from "./lib/utils/cache/MemoryCache";
-
+import { ListErrorsSchema } from "./schema/errors";
 
 const INSTRUCTIONS = `
-	- You are a helpful assistant that can query PostHog API.
-	- Before using any of the tools, clarify which project the user wants to query - use the 'projects-get' tool.
-	- Then return the full list of project names and IDs and ask the user to select one. 
-	- Keep this project ID in scope unless the user asks to change.
-	- If some resource from another tool is not found, ask the user if they want to try finding it in another project.
-	- If you cannot answer the user's PostHog related request or question using other available tools in this MCP, use the 'docs-search' tool to provide information from the documentation to guide user how they can do it themselves - when doing so provide condensed instructions with links to sources.
-`
+- You are a helpful assistant that can query PostHog API.
+- Before using any of the tools, clarify which project the user wants to query - use the 'projects-get' tool.
+- Then return the full list of project names and IDs and ask the user to select one. 
+- Keep this project ID in scope unless the user asks to change.
+- If some resource from another tool is not found, ask the user if they want to try finding it in another project.
+- If you cannot answer the user's PostHog related request or question using other available tools in this MCP, use the 'docs-search' tool to provide information from the documentation to guide user how they can do it themselves - when doing so provide condensed instructions with links to sources.
+`;
 
 type State = {
 	projectId: string | undefined;
-}
+};
 // Define our MCP agent with tools
 export class MyMCP extends McpAgent<Env> {
 	server = new McpServer({
@@ -38,11 +51,9 @@ export class MyMCP extends McpAgent<Env> {
 	cache = new MemoryCache<State>(this.env.USER_HASH);
 
 	async getProjectId() {
-
 		const projectId = await this.cache.get("projectId");
 
 		if (!projectId) {
-
 			const projects = await getProjects(undefined, this.env.POSTHOG_API_TOKEN);
 
 			// If there is only one project, set it as the active project
@@ -51,14 +62,15 @@ export class MyMCP extends McpAgent<Env> {
 				return projects[0].id;
 			}
 
-			throw new Error("Instructions to agent: You must set an active project using the `project-set-active` tool before using any other tools. If you are unsure which project to use, use the `projects-get` tool to see all available projects.");
+			throw new Error(
+				"Instructions to agent: You must set an active project using the `project-set-active` tool before using any other tools. If you are unsure which project to use, use the `projects-get` tool to see all available projects.",
+			);
 		}
 
 		return projectId;
 	}
 
 	async init() {
-
 		this.server.tool(
 			"feature-flag-get-definition",
 			`
@@ -71,39 +83,71 @@ export class MyMCP extends McpAgent<Env> {
 				flagName: z.string().optional(),
 			},
 			async ({ flagId, flagName }) => {
-
 				const projectId = await this.getProjectId();
 
 				const posthogToken = this.env.POSTHOG_API_TOKEN;
 
 				if (!flagId && !flagName) {
-					return { content: [{ type: "text", text: "Error: Either flagId or flagName must be provided." }] };
+					return {
+						content: [
+							{
+								type: "text",
+								text: "Error: Either flagId or flagName must be provided.",
+							},
+						],
+					};
 				}
 
 				try {
 					let flagDefinition: any;
 
 					if (flagId) {
-						flagDefinition = await getFeatureFlagDefinition(projectId, String(flagId), posthogToken);
-						return { content: [{ type: "text", text: JSON.stringify(flagDefinition) }] };
+						flagDefinition = await getFeatureFlagDefinition(
+							projectId,
+							String(flagId),
+							posthogToken,
+						);
+						return {
+							content: [{ type: "text", text: JSON.stringify(flagDefinition) }],
+						};
 					}
 
 					if (flagName) {
 						const allFlags = await getFeatureFlags(projectId, posthogToken);
-						const foundFlag = allFlags.find(f => f.key === flagName);
+						const foundFlag = allFlags.find((f) => f.key === flagName);
 						if (foundFlag) {
 							return { content: [{ type: "text", text: JSON.stringify(foundFlag) }] };
-						} else {
-							return { content: [{ type: "text", text: `Error: Flag with name "${flagName}" not found.` }] };
 						}
+						return {
+							content: [
+								{
+									type: "text",
+									text: `Error: Flag with name "${flagName}" not found.`,
+								},
+							],
+						};
 					}
 
-					return { content: [{ type: "text", text: "Error: Could not determine or find the feature flag." }] };
+					return {
+						content: [
+							{
+								type: "text",
+								text: "Error: Could not determine or find the feature flag.",
+							},
+						],
+					};
 				} catch (error: any) {
 					console.error("Error in feature-flag-get-definition tool:", error);
-					return { content: [{ type: "text", text: `Error: ${error.message || "Failed to process feature flag request"}` }] };
+					return {
+						content: [
+							{
+								type: "text",
+								text: `Error: ${error.message || "Failed to process feature flag request"}`,
+							},
+						],
+					};
 				}
-			}
+			},
 		);
 
 		this.server.tool(
@@ -120,30 +164,37 @@ export class MyMCP extends McpAgent<Env> {
 
 				try {
 					if (!inkeepApiKey) {
-						return { content: [{ type: "text", text: "Error: INKEEP_API_KEY is not configured." }] };
+						return {
+							content: [
+								{ type: "text", text: "Error: INKEEP_API_KEY is not configured." },
+							],
+						};
 					}
 					const resultText = await docsSearch(inkeepApiKey, query);
 					return { content: [{ type: "text", text: resultText }] };
 				} catch (error: any) {
 					console.error("Error in docs-search tool:", error);
-					return { content: [{ type: "text", text: `Error: ${error.message || "Failed to process docs search request"}` }] };
+					return {
+						content: [
+							{
+								type: "text",
+								text: `Error: ${error.message || "Failed to process docs search request"}`,
+							},
+						],
+					};
 				}
-			}
+			},
 		);
-		this.server.tool(
-			"organizations-get",
-			{},
-			async () => {
-				try {
-					const organizations = await getOrganizations(this.env.POSTHOG_API_TOKEN);
-					console.log("organizations", organizations);
-					return { content: [{ type: "text", text: JSON.stringify(organizations) }] };
-				} catch (error) {
-					console.error("Error fetching organizations:", error);
-					return { content: [{ type: "text", text: "Error fetching organizations" }] };
-				}
+		this.server.tool("organizations-get", {}, async () => {
+			try {
+				const organizations = await getOrganizations(this.env.POSTHOG_API_TOKEN);
+				console.log("organizations", organizations);
+				return { content: [{ type: "text", text: JSON.stringify(organizations) }] };
+			} catch (error) {
+				console.error("Error fetching organizations:", error);
+				return { content: [{ type: "text", text: "Error fetching organizations" }] };
 			}
-		);
+		});
 
 		this.server.tool(
 			"project-set-active",
@@ -151,12 +202,11 @@ export class MyMCP extends McpAgent<Env> {
 				projectId: z.string(),
 			},
 			async ({ projectId }) => {
-
 				await this.cache.set("projectId", projectId);
 
 				return { content: [{ type: "text", text: `Switched to project ${projectId}` }] };
-			}
-		)
+			},
+		);
 
 		this.server.tool(
 			"organization-details-get",
@@ -164,16 +214,22 @@ export class MyMCP extends McpAgent<Env> {
 				orgId: z.string().optional(),
 			},
 			async ({ orgId }) => {
-
 				try {
-					const organizationDetails = await getOrganizationDetails(orgId, this.env.POSTHOG_API_TOKEN);
+					const organizationDetails = await getOrganizationDetails(
+						orgId,
+						this.env.POSTHOG_API_TOKEN,
+					);
 					console.log("organization details", organizationDetails);
-					return { content: [{ type: "text", text: JSON.stringify(organizationDetails) }] };
+					return {
+						content: [{ type: "text", text: JSON.stringify(organizationDetails) }],
+					};
 				} catch (error) {
 					console.error("Error fetching organization details:", error);
-					return { content: [{ type: "text", text: "Error fetching organization details" }] };
+					return {
+						content: [{ type: "text", text: "Error fetching organization details" }],
+					};
 				}
-			}
+			},
 		);
 
 		this.server.tool(
@@ -182,8 +238,7 @@ export class MyMCP extends McpAgent<Env> {
 				- Fetches projects that the user has access to - the orgId is optional. 
 				- Use this tool before you use any other tools (besides organization-* and docs-search) to allow user to select the project they want to use for subsequent requests.
 			`,
-			{
-			},
+			{},
 			async () => {
 				try {
 					const projects = await getProjects(undefined, this.env.POSTHOG_API_TOKEN);
@@ -193,21 +248,18 @@ export class MyMCP extends McpAgent<Env> {
 					console.error("Error fetching projects:", error);
 					return { content: [{ type: "text", text: "Error fetching projects" }] };
 				}
-			}
-
+			},
 		);
 
-		this.server.tool(
-			"property-definitions",
-			{},
-			async () => {
+		this.server.tool("property-definitions", {}, async () => {
+			const projectId = await this.getProjectId();
 
-				const projectId = await this.getProjectId();
-
-				const propertyDefinitions = await getPropertyDefinitions({ projectId: projectId, apiToken: this.env.POSTHOG_API_TOKEN });
-				return { content: [{ type: "text", text: JSON.stringify(propertyDefinitions) }] };
-			}
-		);
+			const propertyDefinitions = await getPropertyDefinitions({
+				projectId: projectId,
+				apiToken: this.env.POSTHOG_API_TOKEN,
+			});
+			return { content: [{ type: "text", text: JSON.stringify(propertyDefinitions) }] };
+		});
 
 		this.server.tool(
 			"create-feature-flag",
@@ -219,31 +271,38 @@ export class MyMCP extends McpAgent<Env> {
 				active: z.boolean(),
 			},
 			async ({ name, key, description, filters, active }) => {
-
 				const projectId = await this.getProjectId();
 
-				const featureFlag = await createFeatureFlag({ projectId: projectId, apiToken: this.env.POSTHOG_API_TOKEN, data: { name, key, description, filters, active } });
+				const featureFlag = await createFeatureFlag({
+					projectId: projectId,
+					apiToken: this.env.POSTHOG_API_TOKEN,
+					data: { name, key, description, filters, active },
+				});
 				return { content: [{ type: "text", text: JSON.stringify(featureFlag) }] };
-			}
+			},
 		);
 
 		this.server.tool(
 			"list-errors",
 			{
 				projectId: z.string(),
+				data: ListErrorsSchema,
 			},
-				async ({ projectId }) => {
-
+			async ({ projectId, data }) => {
 				try {
-					const errors = await listErrors({ projectId: projectId, apiToken: this.env.POSTHOG_API_TOKEN });
-					const results = (errors as any).results
+					const errors = await listErrors({
+						projectId: projectId,
+						data: data,
+						apiToken: this.env.POSTHOG_API_TOKEN,
+					});
+					const results = (errors as any).results;
 					console.log("errors results", results);
 					return { content: [{ type: "text", text: JSON.stringify(results) }] };
 				} catch (error) {
 					console.error("Error fetching errors:", error);
 					return { content: [{ type: "text", text: "Error fetching errors" }] };
 				}
-			}
+			},
 		);
 
 		this.server.tool(
@@ -253,12 +312,16 @@ export class MyMCP extends McpAgent<Env> {
 				data: UpdateFeatureFlagInputSchema,
 			},
 			async ({ flagKey, data }) => {
-
 				const projectId = await this.getProjectId();
 
-				const featureFlag = await updateFeatureFlag({ projectId: projectId, apiToken: this.env.POSTHOG_API_TOKEN, key: flagKey, data: data });
+				const featureFlag = await updateFeatureFlag({
+					projectId: projectId,
+					apiToken: this.env.POSTHOG_API_TOKEN,
+					key: flagKey,
+					data: data,
+				});
 				return { content: [{ type: "text", text: JSON.stringify(featureFlag) }] };
-			}
+			},
 		);
 
 		this.server.tool(
@@ -267,23 +330,26 @@ export class MyMCP extends McpAgent<Env> {
 				flagKey: z.string(),
 			},
 			async ({ flagKey }) => {
-
 				const projectId = await this.getProjectId();
 
 				const allFlags = await getFeatureFlags(projectId, this.env.POSTHOG_API_TOKEN);
 
-				const flag = allFlags.find(f => f.key === flagKey);
+				const flag = allFlags.find((f) => f.key === flagKey);
 
 				if (!flag) {
 					return {
-						content: [{ type: "text", text: "Feature flag is already deleted." }]
+						content: [{ type: "text", text: "Feature flag is already deleted." }],
 					};
 				}
 
-				const featureFlag = await deleteFeatureFlag({ projectId: projectId, apiToken: this.env.POSTHOG_API_TOKEN, flagId: flag.id });
+				const featureFlag = await deleteFeatureFlag({
+					projectId: projectId,
+					apiToken: this.env.POSTHOG_API_TOKEN,
+					flagId: flag.id,
+				});
 
 				return { content: [{ type: "text", text: JSON.stringify(featureFlag) }] };
-			}
+			},
 		);
 
 		this.server.tool(
@@ -297,12 +363,21 @@ export class MyMCP extends McpAgent<Env> {
 			`,
 			{
 				projectId: z.string().describe("The ID of the project."),
-				query: z.string().max(1000).describe("Your natural language query describing the SQL insight (max 1000 characters)."),
+				query: z
+					.string()
+					.max(1000)
+					.describe(
+						"Your natural language query describing the SQL insight (max 1000 characters).",
+					),
 			},
 			async ({ projectId, query }) => {
 				const apiToken = this.env.POSTHOG_API_TOKEN;
 				if (!apiToken) {
-					return { content: [{ type: "text", text: "Error: POSTHOG_API_TOKEN is not configured." }] };
+					return {
+						content: [
+							{ type: "text", text: "Error: POSTHOG_API_TOKEN is not configured." },
+						],
+					};
 				}
 
 				try {
@@ -310,21 +385,34 @@ export class MyMCP extends McpAgent<Env> {
 					const extractedData = await extractDataFromSSEStream(sseStream);
 					console.log("extractedData", extractedData);
 					if (extractedData.length === 0) {
-						return { content: [{ type: "text", text: "Received an empty SQL insight or no data in the stream." }] };
+						return {
+							content: [
+								{
+									type: "text",
+									text: "Received an empty SQL insight or no data in the stream.",
+								},
+							],
+						};
 					}
 					return { content: [{ type: "text", text: extractedData }] };
 				} catch (error: any) {
 					console.error("Error in get-sql-insight tool:", error);
-					return { content: [{ type: "text", text: `Error: ${error.message || "Failed to generate SQL insight"}` }] };
+					return {
+						content: [
+							{
+								type: "text",
+								text: `Error: ${error.message || "Failed to generate SQL insight"}`,
+							},
+						],
+					};
 				}
-			}
+			},
 		);
 	}
 }
 
 export default {
 	async fetch(request: Request, env: Env, ctx: ExecutionContext) {
-
 		const url = new URL(request.url);
 		const token = url.searchParams.get("token");
 
@@ -334,8 +422,8 @@ export default {
 
 		const userHash = hash(token);
 
-		env["POSTHOG_API_TOKEN"] = token;
-		env["USER_HASH"] = userHash;
+		env.POSTHOG_API_TOKEN = token;
+		env.USER_HASH = userHash;
 
 		if (url.pathname === "/sse" || url.pathname === "/sse/message") {
 			// @ts-ignore
