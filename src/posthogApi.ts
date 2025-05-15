@@ -4,7 +4,7 @@ import type { CreateFeatureFlagInput, FeatureFlag, PostHogFeatureFlag } from "./
 import type { PostHogFlagsResponse, UpdateFeatureFlagInput } from "./schema/flags";
 import { PropertyDefinitionSchema } from "./schema/properties";
 import type { Project } from "./schema/projects";
-import { type ListErrorsData, ListErrorsSchema, OrderByErrors } from "./schema/errors";
+import { type ListErrorsData, ListErrorsSchema, OrderByErrors, OrderDirectionErrors, StatusErrors } from "./schema/errors";
 
 export async function getFeatureFlagDefinition(
 	projectId: string,
@@ -155,9 +155,10 @@ export async function listErrors({
 	const dateFromToUse = data.dateFrom?.toISOString() ?? date.toISOString();
 	const dateToToUse = data.dateTo?.toISOString() ?? new Date().toISOString();
 	const orderByToUse = data.orderBy ?? OrderByErrors.Occurrences;
-	console.log("dateFromToUse", dateFromToUse);
-	console.log("dateToToUse", dateToToUse);
-	console.log("orderByToUse", orderByToUse);
+	const orderDirectionToUse = data.orderDirection ?? OrderDirectionErrors.Descending;
+	const filterTestAccountsToUse = data.filterTestAccounts ?? true;
+	const limitToUse = data.limit ?? 50;
+	const statusToUse = data.status ?? StatusErrors.Active;
 	const body = {
 		query: {
 			kind: "ErrorTrackingQuery",
@@ -168,8 +169,13 @@ export async function listErrors({
 				date_to: dateToToUse,
 			},
 			volumeResolution: 20,
+			orderDirection: orderDirectionToUse,
+			filterTestAccounts: filterTestAccountsToUse,
+			limit: limitToUse,
+			status: statusToUse,
 		},
 	};
+	console.log("data", body);
 
 	const response = await fetch(`https://us.posthog.com/api/environments/${projectId}/query/`, {
 		method: "POST",
