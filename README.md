@@ -14,7 +14,7 @@ INKEEP_API_KEY="..."
 
 ### 1.2 PostHog API Key
 
-- Obtain a [personal API key](https://posthog.com/docs/api#how-to-obtain-a-personal-api-key) on PostHog with appropriate permissions (project or organization scoped, at least read access, though some tools require write access)
+- Obtain a [personal API key](https://posthog.com/docs/api#how-to-obtain-a-personal-api-key) on PostHog with appropriate permissions
 - Use the key in your MCP configuration JSON 
 
 ### 1.3 MCP configuration for desktop clients (e.g. Cursor, Claude Desktop)
@@ -22,12 +22,17 @@ INKEEP_API_KEY="..."
 ```json
 {
   "mcpServers": {
-    "posthog": {
+    "local-server": {
       "command": "npx",
       "args": [
         "mcp-remote",
-        "http://localhost:8787/sse?token={YOUR_POSTHOG_API_KEY}"
-      ]
+        "https://mcp.posthog.com/sse",
+        "--header",
+        "Authorization:${POSTHOG_API_TOKEN}"
+      ],
+      "env": {
+        "POSTHOG_API_TOKEN": "Bearer {INSERT_YOUR_PERSONAL_API_KEY_HERE}"
+      }
     }
   }
 }
