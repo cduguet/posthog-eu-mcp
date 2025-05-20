@@ -25,7 +25,7 @@
 }
 ```
 
-## 1. Running locally
+## Running locally
 
 ### Environment variables
 
