@@ -4,15 +4,16 @@
 
 1. Obtain a [personal API key](https://posthog.com/docs/api#how-to-obtain-a-personal-api-key) on PostHog with appropriate permissions
 
-2. Add the MCP configuration to your desktop client (e.g. Cursor, Claude Desktop) and add your personal API key
+2. Add the MCP configuration to your desktop client (e.g. Cursor, Windsurf, Claude Desktop) and add your personal API key
 
 ```json
 {
   "mcpServers": {
-    "local-server": {
+    "posthog": {
       "command": "npx",
       "args": [
-        "mcp-remote",
+        "-y",
+        "mcp-remote@latest",
         "https://mcp.posthog.com/sse",
         "--header",
         "Authorization:${POSTHOG_API_TOKEN}"
@@ -24,6 +25,12 @@
   }
 }
 ```
+
+
+**Here are some examples of prompts you can use:**
+- What feature flags do I have active?
+- Add a new feature flag for our homepage redesign
+- What are my most common errors?
 
 ## Running locally
 
