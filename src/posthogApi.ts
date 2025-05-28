@@ -1,9 +1,16 @@
-import { ApiPropertyDefinitionSchema } from "./schema/api";
 import { withPagination } from "./lib/utils/api";
+import { ApiPropertyDefinitionSchema } from "./schema/api";
 
-import { PropertyDefinitionSchema } from "./schema/properties";
-import type { Project } from "./schema/projects";
 import { BASE_URL } from "./lib/constants";
+import { ErrorCode } from "./lib/errors";
+import {
+	type AddInsightToDashboardInput,
+	type CreateDashboardInput,
+	DashboardSchema,
+	type ListDashboardsData,
+	type PostHogDashboard,
+	type UpdateDashboardInput,
+} from "./schema/dashboards";
 import {
 	type ErrorDetailsData,
 	type ListErrorsData,
@@ -11,14 +18,22 @@ import {
 	OrderDirectionErrors,
 	StatusErrors,
 } from "./schema/errors";
-import type { Organization } from "./schema/orgs";
 import {
 	type CreateFeatureFlagInput,
 	FeatureFlagSchema,
 	type PostHogFeatureFlag,
 	type UpdateFeatureFlagInput,
 } from "./schema/flags";
-import { ErrorCode } from "./lib/errors";
+import {
+	type CreateInsightInput,
+	InsightSchema,
+	type ListInsightsData,
+	type PostHogInsight,
+	type UpdateInsightInput,
+} from "./schema/insights";
+import type { Organization } from "./schema/orgs";
+import type { Project } from "./schema/projects";
+import { PropertyDefinitionSchema } from "./schema/properties";
 
 export async function getFeatureFlagDefinition(
 	projectId: string,
@@ -54,14 +69,12 @@ export async function getFeatureFlags(
 }
 
 export async function getOrganizations(apiToken: string): Promise<Organization[]> {
-	console.log("loading organizations");
 	const response = await fetch(`${BASE_URL}/api/organizations/`, {
 		headers: {
 			Authorization: `Bearer ${apiToken}`,
 		},
 	});
 	if (!response.ok) {
-
 		if (response.status === 401) {
 			throw new Error(ErrorCode.INVALID_API_KEY);
 		}
@@ -72,7 +85,6 @@ export async function getOrganizations(apiToken: string): Promise<Organization[]
 }
 
 export async function getOrganizationDetails(orgId: string, apiToken: string) {
-	console.log("loading organization details", orgId);
 	const response = await fetch(`${BASE_URL}/api/organizations/${orgId}/`, {
 		headers: {
 			Authorization: `Bearer ${apiToken}`,
@@ -85,17 +97,13 @@ export async function getOrganizationDetails(orgId: string, apiToken: string) {
 }
 
 export async function getProjects(orgId: string, apiToken: string): Promise<Project[]> {
-	console.log("loading projects", orgId);
 
-	console.log(`${BASE_URL}/api/organizations/${orgId}/projects/`);
-	console.log(`Bearer ${apiToken}`);
 	const response = await fetch(`${BASE_URL}/api/organizations/${orgId}/projects/`, {
 		headers: {
 			Authorization: `Bearer ${apiToken}`,
 		},
 	});
 	if (!response.ok) {
-
 		if (response.status === 401) {
 			throw new Error(ErrorCode.INVALID_API_KEY);
 		}
@@ -109,7 +117,6 @@ export async function getPropertyDefinitions({
 	projectId,
 	apiToken,
 }: { projectId: string; apiToken: string }) {
-	console.log("loading property definitions", projectId);
 	const propertyDefinitions = await withPagination(
 		`${BASE_URL}/api/projects/${projectId}/property_definitions/`,
 		apiToken,
@@ -126,7 +133,6 @@ export async function createFeatureFlag({
 	apiToken,
 	data,
 }: { projectId: string; apiToken: string; data: CreateFeatureFlagInput }) {
-	console.log("creating feature flag for project", projectId, data);
 	const body = {
 		key: data.key,
 		name: data.name,
@@ -159,12 +165,34 @@ export async function createFeatureFlag({
 	return responseData;
 }
 
+function hasResultsProperty(data: unknown): data is { results: PostHogInsight[] } {
+	return typeof data === "object" && data !== null && "results" in data;
+}
+
+function isErrorResponse(data: unknown): data is { results: unknown[] } {
+	return typeof data === "object" && data !== null && "results" in data;
+}
+
+function isLLMCostsResponse(data: unknown): data is { results: unknown[] } {
+	if (typeof data !== "object" || data === null) {
+		return false;
+	}
+
+	if (!("results" in data)) {
+		return false;
+	}
+
+	const obj = data as Record<string, unknown>;
+	return Array.isArray(obj.results);
+}
+
 export async function listErrors({
 	projectId,
 	data,
 	apiToken,
-}: { projectId: string; data: ListErrorsData; apiToken: string | undefined }) {
-	console.log("listing errors for project", projectId, data);
+}: { projectId: string; data: ListErrorsData; apiToken: string | undefined }): Promise<{
+	results: unknown[];
+}> {
 	const date = new Date();
 	date.setDate(date.getDate() - 7);
 	const dateFromToUse = data.dateFrom?.toISOString() ?? date.toISOString();
@@ -189,7 +217,6 @@ export async function listErrors({
 			status: statusToUse,
 		},
 	};
-	console.log("data", body);
 
 	const response = await fetch(`${BASE_URL}/api/environments/${projectId}/query/`, {
 		method: "POST",
@@ -203,7 +230,12 @@ export async function listErrors({
 	if (!response.ok) {
 		throw new Error(`Failed to fetch errors: ${response.statusText}`);
 	}
-	const responseData = await response.json();
+
+	const responseData: unknown = await response.json();
+
+	if (!isErrorResponse(responseData)) {
+		throw new Error("Invalid response format: expected object with results property");
+	}
 
 	return responseData;
 }
@@ -212,8 +244,9 @@ export async function errorDetails({
 	projectId,
 	data,
 	apiToken,
-}: { projectId: string; data: ErrorDetailsData; apiToken: string | undefined }) {
-	console.log("error details for project", projectId, data);
+}: { projectId: string; data: ErrorDetailsData; apiToken: string | undefined }): Promise<{
+	results: unknown[];
+}> {
 	const date = new Date();
 	date.setDate(date.getDate() - 7);
 	const dateFromToUse = data.dateFrom?.toISOString() ?? date.toISOString();
@@ -229,7 +262,6 @@ export async function errorDetails({
 			issueId: data.issueId,
 		},
 	};
-	console.log("data", body);
 
 	const response = await fetch(`https://us.posthog.com/api/environments/${projectId}/query/`, {
 		method: "POST",
@@ -243,7 +275,12 @@ export async function errorDetails({
 	if (!response.ok) {
 		throw new Error(`Failed to fetch error details: ${response.statusText}`);
 	}
-	const responseData = await response.json();
+
+	const responseData: unknown = await response.json();
+
+	if (!isErrorResponse(responseData)) {
+		throw new Error("Invalid response format: expected object with results property");
+	}
 
 	return responseData;
 }
@@ -354,11 +391,16 @@ export async function getSqlInsight({
 	return response.body;
 }
 
+// Type guards for API responses
+function isPostHogInsightArray(data: unknown): data is PostHogInsight[] {
+	return Array.isArray(data);
+}
+
 export async function getLLMTotalCostsForProject({
 	projectId,
 	apiToken,
 	days,
-}: { projectId: string; apiToken: string; days?: number }) {
+}: { projectId: string; apiToken: string; days?: number }): Promise<{ results: unknown[] }> {
 	const body = {
 		query: {
 			kind: "TrendsQuery",
@@ -377,8 +419,7 @@ export async function getLLMTotalCostsForProject({
 					kind: "EventsNode",
 				},
 			],
-			breakdownFilter:
-			{
+			breakdownFilter: {
 				breakdown_type: "event",
 				breakdown: "$ai_model",
 			},
@@ -395,10 +436,344 @@ export async function getLLMTotalCostsForProject({
 
 	if (!response.ok) {
 		const errorText = await response.text();
-		console.log("errorText", errorText);
 		throw new Error(`Failed to fetch llm total costs for project: ${response.statusText}`);
 	}
-	const responseData = await response.json();
-	console.log("responseData", responseData);
-	return responseData
+
+	const responseData: unknown = await response.json();
+
+	if (!isLLMCostsResponse(responseData)) {
+		throw new Error("Invalid response format: expected object with results array");
+	}
+
+	return responseData;
+}
+
+export async function getInsights(
+	projectId: string,
+	apiToken: string,
+	params?: ListInsightsData,
+): Promise<PostHogInsight[]> {
+
+	const searchParams = new URLSearchParams();
+	if (params?.limit) searchParams.append("limit", String(params.limit));
+	if (params?.offset) searchParams.append("offset", String(params.offset));
+	if (params?.saved !== undefined) searchParams.append("saved", String(params.saved));
+	if (params?.favorited !== undefined) searchParams.append("favorited", String(params.favorited));
+	if (params?.search) searchParams.append("search", params.search);
+
+	const url = `${BASE_URL}/api/projects/${projectId}/insights/${searchParams.toString() ? `?${searchParams}` : ""}`;
+
+	const response = await fetch(url, {
+		headers: {
+			Authorization: `Bearer ${apiToken}`,
+		},
+	});
+
+	if (!response.ok) {
+		throw new Error(`Failed to fetch insights: ${response.statusText}`);
+	}
+
+	const data: unknown = await response.json();
+
+	if (isPostHogInsightArray(data)) {
+		return data;
+	}
+
+	if (hasResultsProperty(data)) {
+		return data.results;
+	}
+
+	throw new Error(
+		"Invalid response format: expected PostHogInsight array or object with results property",
+	);
+}
+
+export async function getInsight(
+	projectId: string,
+	insightId: number,
+	apiToken: string,
+): Promise<PostHogInsight> {
+
+	const response = await fetch(`${BASE_URL}/api/projects/${projectId}/insights/${insightId}/`, {
+		headers: {
+			Authorization: `Bearer ${apiToken}`,
+		},
+	});
+
+	if (!response.ok) {
+		throw new Error(`Failed to fetch insight: ${response.statusText}`);
+	}
+
+	return response.json();
+}
+
+export async function createInsight({
+	projectId,
+	apiToken,
+	data,
+}: { projectId: string; apiToken: string; data: CreateInsightInput }): Promise<PostHogInsight> {
+
+	const response = await fetch(`${BASE_URL}/api/projects/${projectId}/insights/`, {
+		method: "POST",
+		headers: {
+			Authorization: `Bearer ${apiToken}`,
+			"Content-Type": "application/json",
+		},
+		body: JSON.stringify(data),
+	});
+
+	if (!response.ok) {
+		const errorText = await response.text();
+		throw new Error(`Failed to create insight: ${response.statusText}. ${errorText}`);
+	}
+
+	return response.json();
+}
+
+export async function updateInsight({
+	projectId,
+	insightId,
+	apiToken,
+	data,
+}: {
+	projectId: string;
+	insightId: number;
+	apiToken: string;
+	data: UpdateInsightInput;
+}): Promise<PostHogInsight> {
+
+	const response = await fetch(`${BASE_URL}/api/projects/${projectId}/insights/${insightId}/`, {
+		method: "PATCH",
+		headers: {
+			Authorization: `Bearer ${apiToken}`,
+			"Content-Type": "application/json",
+		},
+		body: JSON.stringify(data),
+	});
+
+	if (!response.ok) {
+		const errorText = await response.text();
+		throw new Error(`Failed to update insight: ${response.statusText}. ${errorText}`);
+	}
+
+	return response.json();
+}
+
+export async function deleteInsight({
+	projectId,
+	insightId,
+	apiToken,
+}: { projectId: string; insightId: number; apiToken: string }) {
+
+	const response = await fetch(`${BASE_URL}/api/projects/${projectId}/insights/${insightId}/`, {
+		method: "PATCH",
+		headers: {
+			Authorization: `Bearer ${apiToken}`,
+			"Content-Type": "application/json",
+		},
+		body: JSON.stringify({ deleted: true }),
+	});
+
+	if (!response.ok) {
+		throw new Error(`Failed to delete insight: ${response.statusText}`);
+	}
+
+	return {
+		success: true,
+		message: "Insight deleted successfully",
+	};
+}
+
+// Dashboard API functions
+
+function isDashboardArray(data: unknown): data is PostHogDashboard[] {
+	return Array.isArray(data);
+}
+
+function hasDashboardResults(data: unknown): data is { results: PostHogDashboard[] } {
+	return typeof data === "object" && data !== null && "results" in data;
+}
+
+export async function getDashboards(
+	projectId: string,
+	apiToken: string,
+	params?: ListDashboardsData,
+): Promise<PostHogDashboard[]> {
+
+	const searchParams = new URLSearchParams();
+	if (params?.limit) searchParams.append("limit", String(params.limit));
+	if (params?.offset) searchParams.append("offset", String(params.offset));
+	if (params?.search) searchParams.append("search", params.search);
+	if (params?.pinned !== undefined) searchParams.append("pinned", String(params.pinned));
+
+	const url = `${BASE_URL}/api/projects/${projectId}/dashboards/${searchParams.toString() ? `?${searchParams}` : ""}`;
+
+	const response = await fetch(url, {
+		headers: {
+			Authorization: `Bearer ${apiToken}`,
+		},
+	});
+
+	if (!response.ok) {
+		throw new Error(`Failed to fetch dashboards: ${response.statusText}`);
+	}
+
+	const data: unknown = await response.json();
+
+	if (isDashboardArray(data)) {
+		return data;
+	}
+
+	if (hasDashboardResults(data)) {
+		try {
+			return data.results.map((dashboard) => DashboardSchema.parse(dashboard));
+		} catch (error) {
+			throw new Error(`Error parsing dashboard: ${error}`);
+		}
+	}
+
+	throw new Error(
+		"Invalid response format: expected PostHogDashboard array or object with results property",
+	);
+	
+}
+
+export async function getDashboard(
+	projectId: string,
+	dashboardId: number,
+	apiToken: string,
+): Promise<PostHogDashboard> {
+
+	const response = await fetch(
+		`${BASE_URL}/api/projects/${projectId}/dashboards/${dashboardId}/`,
+		{
+			headers: {
+				Authorization: `Bearer ${apiToken}`,
+			},
+		},
+	);
+
+	if (!response.ok) {
+		throw new Error(`Failed to fetch dashboard: ${response.statusText}`);
+	}
+
+	return response.json();
+}
+
+export async function createDashboard({
+	projectId,
+	apiToken,
+	data,
+}: { projectId: string; apiToken: string; data: CreateDashboardInput }): Promise<PostHogDashboard> {
+
+	const response = await fetch(`${BASE_URL}/api/projects/${projectId}/dashboards/`, {
+		method: "POST",
+		headers: {
+			Authorization: `Bearer ${apiToken}`,
+			"Content-Type": "application/json",
+		},
+		body: JSON.stringify(data),
+	});
+
+	if (!response.ok) {
+		const errorText = await response.text();
+		throw new Error(`Failed to create dashboard: ${response.statusText}. ${errorText}`);
+	}
+
+	return response.json();
+}
+
+export async function updateDashboard({
+	projectId,
+	dashboardId,
+	apiToken,
+	data,
+}: {
+	projectId: string;
+	dashboardId: number;
+	apiToken: string;
+	data: UpdateDashboardInput;
+}): Promise<PostHogDashboard> {
+
+	const response = await fetch(
+		`${BASE_URL}/api/projects/${projectId}/dashboards/${dashboardId}/`,
+		{
+			method: "PATCH",
+			headers: {
+				Authorization: `Bearer ${apiToken}`,
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify(data),
+		},
+	);
+
+	if (!response.ok) {
+		const errorText = await response.text();
+		throw new Error(`Failed to update dashboard: ${response.statusText}. ${errorText}`);
+	}
+
+	return response.json();
+}
+
+export async function deleteDashboard({
+	projectId,
+	dashboardId,
+	apiToken,
+}: { projectId: string; dashboardId: number; apiToken: string }) {
+
+	const response = await fetch(
+		`${BASE_URL}/api/projects/${projectId}/dashboards/${dashboardId}/`,
+		{
+			method: "PATCH",
+			headers: {
+				Authorization: `Bearer ${apiToken}`,
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({ deleted: true }),
+		},
+	);
+
+	if (!response.ok) {
+		throw new Error(`Failed to delete dashboard: ${response.statusText}`);
+	}
+
+	return {
+		success: true,
+		message: "Dashboard deleted successfully",
+	};
+}
+
+export async function addInsightToDashboard({
+	projectId,
+	apiToken,
+	data,
+}: { projectId: string; apiToken: string; data: AddInsightToDashboardInput }) {
+
+	// Based on PostHog API documentation and community feedback:
+	// - The dashboard_tiles endpoint doesn't exist for creation
+	// - The Dashboard API can only UPDATE tiles, not CREATE them
+	// - We must use the deprecated 'dashboards' array field as it's the only way that works
+	// See: https://posthog.com/docs/api/insights (Community Questions section)
+	const updateData: any = {
+		dashboards: [data.dashboard_id], // Use deprecated array field - only working approach
+	};
+
+	const response = await fetch(
+		`${BASE_URL}/api/projects/${projectId}/insights/${data.insight_id}/`,
+		{
+			method: "PATCH",
+			headers: {
+				Authorization: `Bearer ${apiToken}`,
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify(updateData),
+		},
+	);
+
+	if (!response.ok) {
+		const errorText = await response.text();
+		throw new Error(`Failed to add insight to dashboard: ${response.statusText}. ${errorText}`);
+	}
+
+	return response.json();
 }
