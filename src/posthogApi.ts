@@ -777,3 +777,27 @@ export async function addInsightToDashboard({
 
 	return response.json();
 }
+
+export async function getUser(apiToken: string) {
+	const response = await fetch(`${BASE_URL}/api/users/@me/`, {
+		headers: {
+			Authorization: `Bearer ${apiToken}`,
+		},
+	});
+
+	if (!response.ok) {
+		throw new Error(`Failed to fetch user: ${response.statusText}`);
+	}
+
+	const data = await response.json() as { distinct_id: string };
+
+	const distinctId = data.distinct_id;
+
+	if (!distinctId) {
+		throw new Error("User does not have a distinct_id");
+	}
+
+	return {
+		distinctId,
+	};
+}
