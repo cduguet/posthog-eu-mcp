@@ -42,15 +42,11 @@ npx @posthog/wizard@latest mcp add
 - Add a new feature flag for our homepage redesign
 - What are my most common errors?
 
-## Running locally
+## Usage
 
-### Environment variables
+To run the project, use the following command:
 
-- Create `.dev.vars` in the root
-- Add Inkeep API key to enable `docs-search` tool (see `Inkeep API key - mcp`)
-
-
-```
-INKEEP_API_KEY="..."
+```bash
+POSTHOG_API_KEY=<YOUR_POSTHOG_API_KEY> npx github:cduguet/posthog-eu-mcp
 ```
 
